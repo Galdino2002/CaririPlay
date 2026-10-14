@@ -81,4 +81,16 @@ No Android, instale o Expo Go e leia o QR Code apresentado pelo Expo.
 
 ## Modelo de negócio
 
-O estabelecimento paga uma mensalidade pela plataforma. O cliente paga a reserva diretamente ao estabelecimento. O CaririPlay não processa pagamentos no MVP.
+O modelo de negócio em avaliação é o pagamento pelo CaririPlay com divisão automática (split) entre plataforma e estabelecimento por um provedor marketplace. Nesta etapa isso ainda não está implementado: o aplicativo usa dados locais e não cobra, não repassa valores e não confirma pagamentos reais. A comissão de 5% no módulo de domínio é apenas uma hipótese demonstrativa para validar o modelo.
+
+
+## Arquitetura e pagamentos (preparação sem banco)
+
+- `docs/ARCHITECTURE.md`: separação de camadas, fronteiras do mock e requisitos de segurança para uma futura API.
+- `docs/PAYMENTS_AND_COMMISSION.md`: fluxo futuro de marketplace, comissão, conciliação e decisões pendentes.
+- `docs/UX_ACCEPTANCE_CHECKLIST.md`: critérios para testar os fluxos atuais e lista de requisitos antes de produção.
+- `src/domain/checkout.ts`: cálculo de orçamento em centavos e tipos de domínio independentes da interface.
+- `src/services/checkoutSimulator.ts`: adaptador local de simulação; não faz requisições, não persiste transações e não confirma reservas.
+- A tela de reserva exibe uma prévia ilustrativa de comissão e parcela do estabelecimento, deixando explícito que nenhuma cobrança ou transferência ocorre.
+
+**Importante:** nenhum banco foi conectado ou criado nesta alteração. Não existe pagamento real. Antes de produção, será necessário implementar validação atômica da disponibilidade no servidor, autenticação/autorização, políticas de acesso, integração marketplace, webhooks assinados, idempotência, estornos, conciliação e testes de segurança.
