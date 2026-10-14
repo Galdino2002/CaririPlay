@@ -4,10 +4,10 @@
     "slug": "caririplay",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#07130F"
+      "backgroundColor": "#F6F7F4"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.galdino2002.caririplay",
       "adaptiveIcon": {
-        "backgroundColor": "#07130F"
+        "backgroundColor": "#10251E"
       }
     }
   }
