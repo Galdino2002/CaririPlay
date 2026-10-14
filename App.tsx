@@ -7,7 +7,7 @@ import {
 import {
   ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Compass, Heart,
   Home, MapPin, Plus, Search, ShieldCheck, SlidersHorizontal,
-  Trophy, Wallet, X, Volleyball, CircleDollarSign, ClipboardList, Bell, Star, Share2, BadgePercent, Users, Trash2,
+  Trophy, Wallet, X, Volleyball, CircleDollarSign, ClipboardList, Bell, Star, Share2, BadgePercent, Users, Trash2, CircleHelp, MessageCircle,
 } from "lucide-react-native";
 import { mockVenue } from "./src/data/mockData";
 import { loadBlockedSlots, loadCourts, loadFavorites, loadNotifications, loadPromotions, loadReservations, loadReviews, loadStaff, saveBlockedSlots, saveCourts, saveFavorites, saveNotifications, savePromotions, saveReservations, saveReviews, saveStaff } from "./src/services/localStore";
@@ -20,7 +20,7 @@ import { SectionHeading } from "./src/components/molecules/SectionHeading";
 import { TimeSlot } from "./src/components/molecules/TimeSlot";
 
 type Role = "Cliente" | "Gestão" | "Admin";
-type Screen = "Início" | "Explorar" | "Reservas" | "Favoritos" | "Painel" | "Agenda" | "Quadras" | "Detalhes" | "Notificações" | "Avaliações" | "Promoções" | "Equipe" | "Admin" | "booking";
+type Screen = "Início" | "Explorar" | "Reservas" | "Favoritos" | "Painel" | "Agenda" | "Quadras" | "Detalhes" | "Notificações" | "Avaliações" | "Promoções" | "Equipe" | "Admin" | "Ajuda" | "booking";
 type SportFilter = "Todas" | "Society" | "Vôlei";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
@@ -324,7 +324,7 @@ export default function App() {
         <View style={styles.brandIcon}><Trophy size={20} color={colors.accent} strokeWidth={2.5} /></View>
         <View><AppText variant="subtitle" weight="800">CaririPlay</AppText><View style={styles.locationInline}><MapPin size={12} color={colors.muted} /><AppText variant="caption" color={colors.muted}>{role === "Cliente" ? "Esporte perto de você" : mockVenue.name + " · " + mockVenue.city}</AppText></View></View>
       </View>
-      <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Abrir notificações" onPress={() => setScreen("Notificações")} style={styles.notificationButton}><Bell size={19} color={colors.primary} />{unreadCount > 0 ? <View style={styles.notificationDot} /> : null}</Pressable><View style={styles.roleSwitcher}>
+      <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Abrir ajuda" onPress={() => setScreen("Ajuda")} style={styles.notificationButton}><CircleHelp size={19} color={colors.primary} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Abrir notificações" onPress={() => setScreen("Notificações")} style={styles.notificationButton}><Bell size={19} color={colors.primary} />{unreadCount > 0 ? <View style={styles.notificationDot} /> : null}</Pressable><View style={styles.roleSwitcher}>
         {(["Cliente", "Gestão", "Admin"] as Role[]).map(item => <Pressable key={item} onPress={() => switchRole(item)} accessibilityRole="button" accessibilityState={{ selected: role === item }} style={[styles.roleOption, role === item && styles.roleOptionActive]}><AppText variant="caption" weight="700" color={role === item ? "#FFFFFF" : colors.muted}>{item}</AppText></Pressable>)}
       </View></View>
     </View>
@@ -377,6 +377,16 @@ export default function App() {
           <SectionHeading title="Avaliações" subtitle="Avaliações publicadas após uma reserva concluída." />
           {reviews.filter(item => item.courtId === selectedCourt.id).length ? reviews.filter(item => item.courtId === selectedCourt.id).map(item => <AppCard key={item.id} style={{ gap: 8 }}><View style={styles.reviewHeader}><AppText weight="800">{item.customerName}</AppText><View style={styles.ratingInline}><Star size={14} color={colors.warning} fill={colors.warning} /><AppText weight="800">{item.rating}/5</AppText></View></View><AppText variant="small" color={colors.muted}>Reserva concluída · avaliação local</AppText>{item.comment ? <AppText>{item.comment}</AppText> : null}</AppCard>) : <EmptyState icon={<Star size={22} color={colors.muted} />} title="Ainda sem avaliações publicadas" description="Após concluir uma reserva, o cliente poderá avaliar a experiência." />}
         </> : <EmptyState title="Quadra não encontrada" description="Volte ao catálogo e selecione outra quadra." action="Explorar" onAction={() => setScreen("Explorar")} />}
+      </> : null}
+
+      {screen === "Ajuda" ? <>
+        <ScreenTitle eyebrow="Central de ajuda" title="Como podemos ajudar?" subtitle="Respostas rápidas para usar o CaririPlay nesta demonstração." />
+        <AppCard style={{ gap: 7 }}><AppText variant="subtitle">Como faço uma reserva?</AppText><AppText color={colors.muted}>Abra Explorar, escolha uma quadra, consulte a data e selecione um horário livre. Preencha nome e telefone e envie a solicitação. A reserva só fica confirmada quando o estabelecimento aceitar.</AppText></AppCard>
+        <AppCard style={{ gap: 7 }}><AppText variant="subtitle">Como funciona o pagamento?</AppText><AppText color={colors.muted}>O pagamento é combinado e feito diretamente com o estabelecimento. O CaririPlay não recebe o valor da reserva nesta versão.</AppText></AppCard>
+        <AppCard style={{ gap: 7 }}><AppText variant="subtitle">Posso reservar toda semana?</AppText><AppText color={colors.muted}>Sim. No formulário, marque “Repetir semanalmente por 4 semanas”. O protótipo cria solicitações para os horários disponíveis, mas cada data ainda depende da confirmação do local.</AppText></AppCard>
+        <AppCard style={{ gap: 7 }}><AppText variant="subtitle">Como vejo ou cancelo minhas reservas?</AppText><AppText color={colors.muted}>Em Minhas reservas, informe o mesmo nome e telefone usados ao solicitar a reserva. Para produção, essa consulta será substituída por uma conta segura.</AppText></AppCard>
+        <AppCard style={{ gap: 7 }}><AppText variant="subtitle">Os horários estão garantidos?</AppText><AppText color={colors.muted}>Não para uso real ainda. Os dados são locais e demonstrativos; a versão com backend precisará validar disponibilidade no banco para evitar conflitos entre aparelhos.</AppText></AppCard>
+        <AppCard style={{ gap: 10 }}><View style={styles.reviewHeader}><MessageCircle size={20} color={colors.success} /><AppText variant="subtitle">Contato demonstrativo</AppText></View><AppText color={colors.muted}>Arena Cariri · {mockVenue.phone ?? "Contato não informado"}</AppText><AppButton label="Compartilhar contato" variant="secondary" onPress={() => void Share.share({ message: `Contato demonstrativo CaririPlay: ${mockVenue.name} · ${mockVenue.phone ?? "telefone não informado"}` })} /></AppCard>
       </> : null}
 
       {screen === "Notificações" ? <>
