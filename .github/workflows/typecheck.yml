@@ -21,3 +21,5 @@ jobs:
         run: npm install
       - name: TypeScript check
         run: npm run typecheck
+
+# Keep the main branch type-safe as the mock-data MVP evolves.
