@@ -34,6 +34,12 @@ Marketplace mobile para descobrir e reservar quadras society e de vôlei no Cari
 - Criação e ativação de promoções com desconto percentual
 - Lista local de equipe com papéis demonstrativos de Administrador, Atendente e Leitura
 
+### Administração da plataforma (demonstração)
+- Painel resumido de estabelecimentos, reservas, assinatura e suporte
+- Aprovação demonstrativa de estabelecimento e pausa/reativação da assinatura
+- Auditoria local baseada em avisos do protótipo
+- Aviso explícito de que acesso administrativo deve ser limitado por necessidade e privacidade
+
 ### Design system / Atomic Design
 - Tokens para cores, tipografia, espaçamento e raios
 - Átomos: `AppButton`, `AppText`, `StatusBadge`
@@ -52,10 +58,10 @@ No Android, instale o Expo Go e leia o QR Code apresentado pelo Expo.
 
 ## Importante: limitações desta demonstração
 
-- A troca entre “Cliente” e “Gestão” é apenas uma simulação visual; não é autenticação nem controle de acesso.
+- A troca entre “Cliente”, “Gestão” e “Admin” é apenas uma simulação visual; não é autenticação nem controle de acesso.
 - Os dados ficam no dispositivo por meio do AsyncStorage e não são sincronizados com outros usuários.
 - A prevenção de conflito de horários funciona apenas nos dados locais e não protege contra reservas simultâneas em dispositivos diferentes.
-- O catálogo utiliza quadras e estabelecimento fictícios; não há fotos reais, avaliações verificadas, geolocalização ou disponibilidade publicada por estabelecimentos reais.
+- O catálogo utiliza quadras e estabelecimento fictícios; não há fotos reais, mapa integrado, geolocalização ou disponibilidade publicada por estabelecimentos reais.
 - Dados, avaliações, favoritos, promoções, bloqueios e equipe ficam apenas neste dispositivo; não há sincronização entre pessoas ou aparelhos.
 - As notificações são avisos internos da demonstração, não notificações push agendadas do sistema.
 - Os papéis de equipe são apenas demonstrativos e não aplicam autorização real.
