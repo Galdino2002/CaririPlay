@@ -21,9 +21,6 @@
       "adaptiveIcon": {
         "backgroundColor": "#07130F"
       }
-    },
-    "plugins": [
-      "expo-status-bar"
-    ]
+    }
   }
 }
