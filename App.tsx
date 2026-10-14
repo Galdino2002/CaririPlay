@@ -19,8 +19,8 @@ import { StatusBadge } from "./src/components/atoms/StatusBadge";
 import { SectionHeading } from "./src/components/molecules/SectionHeading";
 import { TimeSlot } from "./src/components/molecules/TimeSlot";
 
-type Role = "Cliente" | "Gestão";
-type Screen = "Início" | "Explorar" | "Reservas" | "Favoritos" | "Painel" | "Agenda" | "Quadras" | "Detalhes" | "Notificações" | "Avaliações" | "Promoções" | "Equipe" | "booking";
+type Role = "Cliente" | "Gestão" | "Admin";
+type Screen = "Início" | "Explorar" | "Reservas" | "Favoritos" | "Painel" | "Agenda" | "Quadras" | "Detalhes" | "Notificações" | "Avaliações" | "Promoções" | "Equipe" | "Admin" | "booking";
 type SportFilter = "Todas" | "Society" | "Vôlei";
 
 const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
@@ -135,6 +135,10 @@ export default function App() {
   const [litOnly, setLitOnly] = useState(false);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [selectedAgendaDate, setSelectedAgendaDate] = useState(todayKey());
+  const [agendaRange, setAgendaRange] = useState<"Semana" | "Mês">("Semana");
+  const [venueVerified, setVenueVerified] = useState(false);
+  const [subscriptionActive, setSubscriptionActive] = useState(true);
+  const [supportResolved, setSupportResolved] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [blockCourtId, setBlockCourtId] = useState("");
   const [blockTime, setBlockTime] = useState("07:00");
@@ -289,7 +293,7 @@ export default function App() {
 
   const switchRole = (nextRole: Role) => {
     setRole(nextRole);
-    setScreen(nextRole === "Cliente" ? "Início" : "Painel");
+    setScreen(nextRole === "Cliente" ? "Início" : nextRole === "Gestão" ? "Painel" : "Admin");
   };
 
   const navItems = role === "Cliente"
@@ -299,12 +303,12 @@ export default function App() {
       { label: "Reservas" as Screen, icon: CalendarDays },
       { label: "Favoritos" as Screen, icon: Heart },
     ]
-    : [
+    : role === "Gestão" ? [
       { label: "Painel" as Screen, icon: Home },
       { label: "Agenda" as Screen, icon: CalendarDays },
       { label: "Quadras" as Screen, icon: Trophy },
       { label: "Reservas" as Screen, icon: ClipboardList },
-    ];
+    ] : [{ label: "Admin" as Screen, icon: ShieldCheck }];
 
   const renderCourtList = (list: Court[]) => list.length ? list.map(court => (
     <CourtCard key={court.id} court={court} venueName={mockVenue.name} onPress={() => openCourtDetails(court)}
@@ -321,7 +325,7 @@ export default function App() {
         <View><AppText variant="subtitle" weight="800">CaririPlay</AppText><View style={styles.locationInline}><MapPin size={12} color={colors.muted} /><AppText variant="caption" color={colors.muted}>{role === "Cliente" ? "Esporte perto de você" : mockVenue.name + " · " + mockVenue.city}</AppText></View></View>
       </View>
       <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Abrir notificações" onPress={() => setScreen("Notificações")} style={styles.notificationButton}><Bell size={19} color={colors.primary} />{unreadCount > 0 ? <View style={styles.notificationDot} /> : null}</Pressable><View style={styles.roleSwitcher}>
-        {(["Cliente", "Gestão"] as Role[]).map(item => <Pressable key={item} onPress={() => switchRole(item)} accessibilityRole="button" accessibilityState={{ selected: role === item }} style={[styles.roleOption, role === item && styles.roleOptionActive]}><AppText variant="caption" weight="700" color={role === item ? "#FFFFFF" : colors.muted}>{item}</AppText></Pressable>)}
+        {(["Cliente", "Gestão", "Admin"] as Role[]).map(item => <Pressable key={item} onPress={() => switchRole(item)} accessibilityRole="button" accessibilityState={{ selected: role === item }} style={[styles.roleOption, role === item && styles.roleOptionActive]}><AppText variant="caption" weight="700" color={role === item ? "#FFFFFF" : colors.muted}>{item}</AppText></Pressable>)}
       </View></View>
     </View>
 
@@ -363,7 +367,7 @@ export default function App() {
       {role === "Cliente" && screen === "Detalhes" ? <>
         {selectedCourt ? <>
           <Pressable onPress={() => setScreen("Explorar")} style={styles.backInline} accessibilityRole="button"><ArrowLeft size={17} color={colors.primary} /><AppText weight="700">Voltar para explorar</AppText></Pressable>
-          <View style={styles.detailArtwork}><View style={styles.detailFieldLines}><View style={styles.fieldCircle} /><View style={styles.fieldMidline} /></View><View style={styles.detailBadges}><View style={styles.artworkBadge}><Trophy size={14} color={colors.primary} /><Text style={styles.artworkBadgeText}>{selectedCourt.sport}</Text></View><View style={styles.demoPill}><AppText variant="caption" color={colors.muted} weight="700">{selectedCourt.verified ? "Estabelecimento verificado" : "Perfil demonstrativo"}</AppText></View></View></View>
+          <View style={styles.detailArtwork}><View style={styles.detailFieldLines}><View style={styles.fieldCircle} /><View style={styles.fieldMidline} /></View><View style={styles.detailBadges}><View style={styles.artworkBadge}><Trophy size={14} color={colors.primary} /><Text style={styles.artworkBadgeText}>{selectedCourt.sport}</Text></View><View style={styles.demoPill}><AppText variant="caption" color={colors.muted} weight="700">{(selectedCourt.verified || venueVerified) ? "Estabelecimento verificado" : "Perfil demonstrativo"}</AppText></View></View></View>
           <View style={styles.detailTitleRow}><View style={{ flex: 1, gap: 5 }}><AppText variant="display">{selectedCourt.name}</AppText><AppText color={colors.muted}>{selectedCourt.venueName ?? mockVenue.name} · {selectedCourt.neighborhood ?? "Cariri"} · {selectedCourt.city ?? mockVenue.city}</AppText><View style={styles.ratingInline}><Star size={17} color={colors.warning} fill={colors.warning} /><AppText weight="800">{(selectedCourt.rating ?? 0).toFixed(1)}</AppText><AppText variant="small" color={colors.muted}>({selectedCourt.reviewCount ?? 0} avaliações demonstrativas)</AppText></View></View><View style={{ alignItems: "flex-end" }}><AppText variant="heading">{currency(selectedCourt.pricePerHour)}</AppText><AppText variant="caption" color={colors.muted}>por hora</AppText></View></View>
           <AppText>{selectedCourt.description ?? "Espaço esportivo para sua próxima partida."}</AppText>
           {promotions.some(p => p.active && (!p.courtId || p.courtId === selectedCourt.id)) ? <View style={styles.promotionBanner}><BadgePercent size={20} color={colors.success} /><View style={{ flex: 1, gap: 2 }}><AppText weight="800">Promoção disponível</AppText><AppText variant="small" color={colors.muted}>Confira as condições e horários ao selecionar sua reserva.</AppText></View></View> : null}
@@ -434,6 +438,21 @@ export default function App() {
         {renderCourtList(activeCourts.filter(court => favorites.includes(court.id)))}
       </> : null}
 
+      {role === "Admin" && screen === "Admin" ? <>
+        <View style={styles.ownerHero}><AppText variant="caption" color={colors.accent} weight="800">ADMINISTRAÇÃO CARIRIPLAY</AppText><AppText variant="display" color="#FFFFFF">Visão da plataforma</AppText><AppText color="#D0DBD2">Acompanhe estabelecimentos, assinaturas e suporte. Esta área é apenas demonstrativa.</AppText></View>
+        <View style={styles.statsGrid}>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><ShieldCheck size={18} color={colors.success} /></View><AppText variant="heading">1</AppText><AppText variant="small" color={colors.muted}>Estabelecimento de teste</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><CalendarDays size={18} color={colors.success} /></View><AppText variant="heading">{reservations.length}</AppText><AppText variant="small" color={colors.muted}>Reservas no protótipo</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><Wallet size={18} color={colors.success} /></View><AppText variant="heading">{subscriptionActive ? "Ativa" : "Pausada"}</AppText><AppText variant="small" color={colors.muted}>Assinatura demonstrativa</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><Bell size={18} color={colors.warning} /></View><AppText variant="heading">{supportResolved ? "0" : "1"}</AppText><AppText variant="small" color={colors.muted}>Chamados de suporte abertos</AppText></AppCard>
+        </View>
+        <AppCard style={{ gap: 12 }}><View style={styles.reviewHeader}><View style={{ flex: 1, gap: 3 }}><AppText variant="subtitle">{mockVenue.name}</AppText><AppText variant="small" color={colors.muted}>{mockVenue.city} · cadastro fictício</AppText></View><StatusBadge status={venueVerified ? "Confirmada" : "Pendente"} /></View><AppText variant="small" color={colors.muted}>Antes de aprovar estabelecimentos reais, a plataforma deverá validar identidade, endereço e titularidade do negócio.</AppText><AppButton label={venueVerified ? "Retirar verificação demonstrativa" : "Aprovar estabelecimento demonstrativo"} onPress={() => setVenueVerified(value => !value)} variant="secondary" compact /></AppCard>
+        <AppCard style={{ gap: 12 }}><AppText variant="subtitle">Assinatura do estabelecimento</AppText><AppText variant="small" color={colors.muted}>O CaririPlay cobra mensalidade do proprietário. O pagamento da reserva continua direto ao local; a plataforma não processa esse pagamento.</AppText><View style={styles.reviewHeader}><StatusBadge status={subscriptionActive ? "Confirmada" : "Cancelada"} /><AppButton label={subscriptionActive ? "Pausar assinatura demo" : "Reativar assinatura demo"} onPress={() => setSubscriptionActive(value => !value)} variant="secondary" compact /></View></AppCard>
+        <AppCard style={{ gap: 12 }}><AppText variant="subtitle">Suporte e moderação</AppText><AppText weight="700">Chamado demonstrativo: dúvida sobre cadastro do estabelecimento</AppText><AppText variant="small" color={colors.muted}>Nenhuma mensagem real de cliente é carregada nesta área.</AppText><AppButton label={supportResolved ? "Reabrir chamado" : "Marcar como resolvido"} onPress={() => setSupportResolved(value => !value)} variant="secondary" compact /></AppCard>
+        <AppCard style={{ gap: 10 }}><AppText variant="subtitle">Auditoria recente</AppText>{notifications.slice(0, 5).map(item => <View key={item.id} style={styles.auditRow}><View style={styles.auditDot} /><View style={{ flex: 1, gap: 3 }}><AppText variant="small" weight="700">{item.title}</AppText><AppText variant="caption" color={colors.muted}>{new Date(item.createdAt).toLocaleString("pt-BR")} · {item.message}</AppText></View></View>)}{!notifications.length ? <AppText variant="small" color={colors.muted}>As ações locais de reserva aparecerão aqui quando houver atividade.</AppText> : null}</AppCard>
+        <View style={styles.trustStrip}><ShieldCheck size={19} color={colors.success} /><View style={{ flex: 1, gap: 3 }}><AppText weight="800">Privacidade por padrão</AppText><AppText variant="small" color={colors.muted}>No produto real, a administração deve acessar apenas dados necessários para suporte, moderação e cobrança — sem acesso irrestrito a dados pessoais dos clientes.</AppText></View></View>
+      </> : null}
+
       {role === "Gestão" && screen === "Painel" ? <>
         <View style={styles.ownerHero}><AppText variant="caption" color={colors.accent} weight="800">ÁREA DO ESTABELECIMENTO</AppText><AppText variant="display" color="#FFFFFF">Bom dia, Arena Cariri.</AppText><AppText color="#D0DBD2">Aqui está o resumo da sua operação.</AppText><View style={styles.ownerHeroFooter}><View style={styles.ownerHeroMeta}><MapPin size={14} color="#D0DBD2" /><AppText variant="small" color="#D0DBD2">{mockVenue.city}</AppText></View><View style={styles.ownerHeroMeta}><Clock3 size={14} color="#D0DBD2" /><AppText variant="small" color="#D0DBD2">{mockVenue.openingTime}–{mockVenue.closingTime}</AppText></View></View></View>
         <View style={styles.statsGrid}>
@@ -449,7 +468,7 @@ export default function App() {
       </> : null}
 
       {role === "Gestão" && screen === "Agenda" ? <>
-        <ScreenTitle eyebrow="Operação" title="Agenda" subtitle="Gerencie reservas, manutenção e horários bloqueados." /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateOptions}>{Array.from({ length: 7 }, (_, i) => dateOffset(i)).map((date, i) => <Pressable key={date} onPress={() => setSelectedAgendaDate(date)} style={[styles.dateOption, selectedAgendaDate === date && styles.dateOptionActive]}><AppText variant="caption" color={selectedAgendaDate === date ? colors.accent : colors.muted} weight="700">{i === 0 ? "HOJE" : i === 1 ? "AMANHÃ" : dateLabel(date).split(" de ")[0].toUpperCase()}</AppText><AppText variant="subtitle" color={selectedAgendaDate === date ? "#FFFFFF" : colors.text}>{date.slice(8, 10)}</AppText><AppText variant="caption" color={selectedAgendaDate === date ? "#D0DBD2" : colors.muted}>{dateLabel(date).split(" de ")[1]?.slice(0, 3) ?? ""}</AppText></Pressable>)}</ScrollView><AppButton label={showBlockForm ? "Fechar bloqueio de horário" : "Bloquear horário / manutenção"} onPress={() => { setBlockCourtId(activeCourts[0]?.id ?? ""); setShowBlockForm(value => !value); }} variant="secondary" icon={<CalendarDays size={17} color={colors.success} />} /><AppText variant="small" color={colors.muted}>Agenda de {dateLabel(selectedAgendaDate)}</AppText>{showBlockForm ? <AppCard style={{ gap: 12 }}><AppText variant="subtitle">Indisponibilizar um horário</AppText><View style={styles.filters}>{activeCourts.map(court => <Pressable key={court.id} onPress={() => setBlockCourtId(court.id)} style={[styles.filterChip, blockCourtId === court.id && styles.filterChipActive]}><AppText variant="small" color={blockCourtId === court.id ? "#FFFFFF" : colors.muted}>{court.name}</AppText></Pressable>)}</View><AppText variant="small" weight="700">Horário</AppText><View style={styles.timeGrid}>{timeSlots.map(time => <TimeSlot key={time} time={time} selected={blockTime === time} unavailable={isSlotTaken(blockCourtId, selectedAgendaDate, time)} onPress={() => setBlockTime(time)} />)}</View><TextInput value={blockReason} onChangeText={setBlockReason} style={styles.input} placeholder="Motivo do bloqueio" placeholderTextColor={colors.muted} accessibilityLabel="Motivo do bloqueio" /><AppButton label="Salvar bloqueio" onPress={() => void createBlockedSlot()} /></AppCard> : null}
+        <ScreenTitle eyebrow="Operação" title="Agenda" subtitle="Gerencie reservas, manutenção e horários bloqueados." /><View style={styles.sportToggle}>{(["Semana", "Mês"] as const).map(range => <Pressable key={range} onPress={() => setAgendaRange(range)} style={[styles.sportToggleItem, agendaRange === range && styles.sportToggleActive]}><AppText weight="700" color={agendaRange === range ? "#FFFFFF" : colors.muted}>{range === "Semana" ? "Próximos 7 dias" : "Próximos 30 dias"}</AppText></Pressable>)}</View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateOptions}>{Array.from({ length: agendaRange === "Semana" ? 7 : 30 }, (_, i) => dateOffset(i)).map((date, i) => <Pressable key={date} onPress={() => setSelectedAgendaDate(date)} style={[styles.dateOption, selectedAgendaDate === date && styles.dateOptionActive]}><AppText variant="caption" color={selectedAgendaDate === date ? colors.accent : colors.muted} weight="700">{i === 0 ? "HOJE" : i === 1 ? "AMANHÃ" : dateLabel(date).split(" de ")[0].toUpperCase()}</AppText><AppText variant="subtitle" color={selectedAgendaDate === date ? "#FFFFFF" : colors.text}>{date.slice(8, 10)}</AppText><AppText variant="caption" color={selectedAgendaDate === date ? "#D0DBD2" : colors.muted}>{dateLabel(date).split(" de ")[1]?.slice(0, 3) ?? ""}</AppText></Pressable>)}</ScrollView><AppButton label={showBlockForm ? "Fechar bloqueio de horário" : "Bloquear horário / manutenção"} onPress={() => { setBlockCourtId(activeCourts[0]?.id ?? ""); setShowBlockForm(value => !value); }} variant="secondary" icon={<CalendarDays size={17} color={colors.success} />} /><AppText variant="small" color={colors.muted}>Agenda de {dateLabel(selectedAgendaDate)}</AppText>{showBlockForm ? <AppCard style={{ gap: 12 }}><AppText variant="subtitle">Indisponibilizar um horário</AppText><View style={styles.filters}>{activeCourts.map(court => <Pressable key={court.id} onPress={() => setBlockCourtId(court.id)} style={[styles.filterChip, blockCourtId === court.id && styles.filterChipActive]}><AppText variant="small" color={blockCourtId === court.id ? "#FFFFFF" : colors.muted}>{court.name}</AppText></Pressable>)}</View><AppText variant="small" weight="700">Horário</AppText><View style={styles.timeGrid}>{timeSlots.map(time => <TimeSlot key={time} time={time} selected={blockTime === time} unavailable={isSlotTaken(blockCourtId, selectedAgendaDate, time)} onPress={() => setBlockTime(time)} />)}</View><TextInput value={blockReason} onChangeText={setBlockReason} style={styles.input} placeholder="Motivo do bloqueio" placeholderTextColor={colors.muted} accessibilityLabel="Motivo do bloqueio" /><AppButton label="Salvar bloqueio" onPress={() => void createBlockedSlot()} /></AppCard> : null}
         <View style={styles.dateCard}><CalendarDays size={20} color={colors.success} /><View style={{ flex: 1 }}><AppText weight="700">{dateLabel(selectedAgendaDate)}</AppText><AppText variant="small" color={colors.muted}>{mockVenue.openingTime}–{mockVenue.closingTime}</AppText></View><AppText variant="small" color={colors.success} weight="700">{reservations.filter(item => item.date === selectedAgendaDate && item.status !== "Cancelada").length} reserva(s)</AppText></View>
         {activeCourts.map(court => {
           const items = reservations.filter(item => item.date === selectedAgendaDate && item.courtId === court.id && item.status !== "Cancelada").sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -501,6 +520,8 @@ const styles = StyleSheet.create({
   staffRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   staffAvatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  auditRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: spacing.xs },
+  auditDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginTop: 4 },
   notificationButton: { width: 38, height: 38, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   notificationDot: { position: "absolute", top: 7, right: 7, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger, borderWidth: 1, borderColor: colors.surface },
   filterPanel: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
