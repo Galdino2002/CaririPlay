@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable,
-  SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView,
+  StatusBar, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle,
 } from "react-native";
 import {
   ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Compass, Heart,
-  Home, MapPin, Plus, Search, Settings2, ShieldCheck, SlidersHorizontal,
-  Trophy, UserRound, Wallet, X, Volleyball, CircleDollarSign, ClipboardList,
+  Home, MapPin, Plus, Search, ShieldCheck, SlidersHorizontal,
+  Trophy, Wallet, X, Volleyball, CircleDollarSign, ClipboardList,
 } from "lucide-react-native";
 import { mockVenue } from "./src/data/mockData";
 import { loadCourts, loadReservations, saveCourts, saveReservations } from "./src/services/localStore";
@@ -40,7 +41,7 @@ const dateLabel = (date: string, includeWeekday = false) => {
 };
 const initials = (value: string) => value.split(" ").filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
 
-function AppCard({ children, style }: { children: React.ReactNode; style?: object }) {
+function AppCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
@@ -52,7 +53,7 @@ function ScreenTitle({ eyebrow, title, subtitle }: { eyebrow?: string; title: st
   </View>;
 }
 
-function EmptyState({ icon, title, description, action, onAction }: { icon?: React.ReactNode; title: string; description: string; action?: string; onAction?: () => void }) {
+function EmptyState({ icon, title, description, action, onAction }: { icon?: ReactNode; title: string; description: string; action?: string; onAction?: () => void }) {
   return <View style={styles.emptyState}>
     <View style={styles.emptyIcon}>{icon ?? <CalendarDays color={colors.muted} size={24} />}</View>
     <AppText variant="subtitle">{title}</AppText>
@@ -71,7 +72,7 @@ function CourtCard({ court, venueName, onPress, favorite, onFavorite }: {
       <Pressable accessibilityRole="button" accessibilityLabel={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} hitSlop={10} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={styles.favoriteButton}>
         <Heart size={19} color={favorite ? colors.danger : colors.primary} fill={favorite ? colors.danger : "transparent"} />
       </Pressable>
-      <View style={styles.artworkCaption}><Text style={styles.artworkVenue}>{venueName}</Text><Text style={styles.artworkLocation}><MapPin size={12} color="#FFFFFF" /> Crato, CE</Text></View>
+      <View style={styles.artworkCaption}><Text style={styles.artworkVenue}>{venueName}</Text><View style={styles.artworkLocation}><MapPin size={12} color="#FFFFFF" /><Text style={styles.artworkLocationText}>Crato, CE</Text></View></View>
     </View>
     <View style={styles.venueCardBody}>
       <View style={styles.venueTitleRow}>
@@ -104,6 +105,7 @@ function ReservationCard({ reservation, court, ownerMode, onStatus }: {
       <View style={{ flex: 1 }}><AppButton label="Confirmar" onPress={() => onStatus(reservation, "Confirmada")} compact icon={<Check size={15} color={colors.primary} />} /></View>
       <View style={{ flex: 1 }}><AppButton label="Recusar" onPress={() => onStatus(reservation, "Cancelada")} compact variant="danger" icon={<X size={15} color={colors.danger} />} /></View>
     </View> : null}
+    {!ownerMode && (reservation.status === "Pendente" || reservation.status === "Confirmada") ? <AppButton label="Cancelar reserva" onPress={() => onStatus(reservation, "Cancelada")} compact variant="danger" icon={<X size={15} color={colors.danger} />} /> : null}
     {ownerMode && reservation.status === "Confirmada" ? <View style={styles.inlineActions}>
       <View style={{ flex: 1 }}><AppButton label="Concluir reserva" onPress={() => onStatus(reservation, "Concluída")} compact variant="secondary" icon={<Check size={15} color={colors.success} />} /></View>
       <View style={{ flex: 1 }}><AppButton label="Cancelar" onPress={() => onStatus(reservation, "Cancelada")} compact variant="danger" icon={<X size={15} color={colors.danger} />} /></View>
@@ -130,7 +132,6 @@ export default function App() {
   const [courtName, setCourtName] = useState("");
   const [courtPrice, setCourtPrice] = useState("");
   const [courtSport, setCourtSport] = useState<"Society" | "Vôlei">("Society");
-  const [courtSearch, setCourtSearch] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -153,13 +154,16 @@ export default function App() {
     const matchesQuery = !query || court.name.toLocaleLowerCase("pt-BR").includes(query) || mockVenue.name.toLocaleLowerCase("pt-BR").includes(query) || mockVenue.city.toLocaleLowerCase("pt-BR").includes(query);
     return matchesQuery && (sportFilter === "Todas" || court.sport === sportFilter);
   }), [activeCourts, search, sportFilter]);
-  const customerReservations = reservations.filter(item => item.customerName === customerName.trim() && customerName.trim().length > 0);
+  const customerReservations = reservations.filter(item =>
+    item.customerName.toLocaleLowerCase("pt-BR") === customerName.trim().toLocaleLowerCase("pt-BR")
+    && customerName.trim().length > 0
+    && (!customerPhone.replace(/\\D/g, "") || item.phone.replace(/\\D/g, "") === customerPhone.replace(/\\D/g, ""))
+  );
   const todayReservations = reservations.filter(item => item.date === todayKey() && item.status !== "Cancelada");
   const pendingCount = reservations.filter(item => item.status === "Pendente").length;
   const reservedValue = todayReservations.filter(item => item.status === "Confirmada" || item.status === "Concluída").reduce((sum, item) => sum + (courts.find(c => c.id === item.courtId)?.pricePerHour ?? 0), 0);
   const timeSlots = Array.from({ length: 16 }, (_, index) => `${String(index + 7).padStart(2, "0")}:00`);
   const isSlotTaken = (courtId: string, date: string, startTime: string) => reservations.some(item => item.courtId === courtId && item.date === date && item.startTime === startTime && item.status !== "Cancelada");
-  const availableSlots = timeSlots.filter(time => !selectedCourt || !isSlotTaken(selectedCourt.id, selectedDate, time));
 
   const changeStatus = (reservation: Reservation, status: ReservationStatus) => {
     Alert.alert(status === "Cancelada" ? "Cancelar esta reserva?" : `${status} reserva?`, `${reservation.customerName} · ${reservation.date} · ${reservation.startTime}`, [
@@ -419,7 +423,8 @@ const styles = StyleSheet.create({
   favoriteButton: { position: "absolute", right: 14, top: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", zIndex: 2 },
   artworkCaption: { zIndex: 1, gap: 3 },
   artworkVenue: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
-  artworkLocation: { color: "#FFFFFF", fontSize: 11, flexDirection: "row", alignItems: "center" },
+  artworkLocation: { flexDirection: "row", alignItems: "center", gap: 4 },
+  artworkLocationText: { color: "#FFFFFF", fontSize: 11 },
   venueCardBody: { padding: spacing.lg, gap: spacing.md },
   venueTitleRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   priceBlock: { alignItems: "flex-end" },
