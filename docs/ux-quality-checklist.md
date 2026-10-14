@@ -40,13 +40,15 @@ Este documento transforma as 10 heurísticas de Nielsen em critérios verificáv
 - [x] Exibir datas e horários disponíveis para seleção.
 - [x] Exibir os status das reservas.
 - [ ] Manter filtros e favoritos após reiniciar o aplicativo.
-- [ ] Mostrar endereço completo, regras, comodidades e política de cancelamento na página de detalhes.
+- [x] Exibir endereço textual, regras e comodidades na página de detalhes.
+- [ ] Mostrar política de cancelamento definida por cada estabelecimento.
 
 ## 7. Flexibilidade e eficiência
 - [x] Oferecer atalhos para Society, Vôlei e exploração.
 - [x] Permitir busca e filtros no catálogo.
 - [x] Oferecer ações diretas na gestão de reservas.
-- [ ] Adicionar repetir reserva e atalhos para horários recentes.
+- [x] Permitir repetir reserva semanal por quatro semanas na demonstração.
+- [ ] Adicionar atalhos para horários recentes.
 - [ ] Testar a quantidade de toques e o tempo para completar a tarefa.
 
 ## 8. Design estético e minimalista
@@ -75,7 +77,7 @@ Este documento transforma as 10 heurísticas de Nielsen em critérios verificáv
 - **Moléculas:** `SectionHeading`, `TimeSlot`, campos de formulário.
 - **Organismos:** cartão de quadra, cartão de reserva, formulário de reserva, navegação.
 - **Templates:** composição da experiência do cliente e da área do proprietário.
-- **Páginas:** Início, Explorar, Reserva, Minhas reservas, Painel, Agenda e Quadras.
+- **Páginas:** Início, Explorar, Detalhes, Reserva, Minhas reservas, Favoritos, Avaliações, Notificações, Painel, Agenda, Quadras, Promoções, Equipe e Administração demonstrativa.
 
 ## Critérios de teste manual
 1. Uma pessoa que nunca viu o app consegue encontrar uma quadra sem orientação?
@@ -84,6 +86,9 @@ Este documento transforma as 10 heurísticas de Nielsen em critérios verificáv
 4. Se o horário ficar ocupado, recebe uma explicação e consegue selecionar outro?
 5. O proprietário consegue confirmar, cancelar e concluir uma reserva?
 6. O proprietário consegue adicionar uma quadra, alterar preço e ocultá-la do catálogo?
+8. O proprietário consegue bloquear um horário de manutenção e removê-lo depois?
+9. O cliente consegue avaliar uma reserva concluída sem avaliar a mesma reserva duas vezes?
+10. A recorrência ignora horários ocupados e informa quantas solicitações foram criadas?
 7. A interface é compreensível com fonte ampliada e leitor de tela?
 
 ## Limites atuais
