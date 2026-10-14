@@ -493,6 +493,7 @@ const styles = StyleSheet.create({
   sportToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   manageCourtCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   activePill: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, marginTop: 3 },
+  editPriceLink: { alignSelf: "flex-start", paddingVertical: 3 },
   bottomNav: { flexDirection: "row", paddingTop: spacing.sm, paddingBottom: Platform.OS === "ios" ? spacing.lg : spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   bottomNavItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: spacing.xs },
   bottomIconWrap: { width: 54, height: 30, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
