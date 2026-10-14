@@ -24,6 +24,7 @@ Marketplace mobile para descobrir e reservar quadras society e de vôlei no Cari
 - Avaliação local após reserva concluída, com uma avaliação por reserva
 - Central de avisos locais, atualizações de status e criação manual de lembretes demonstrativos
 - Compartilhamento da quadra pelo menu nativo do celular
+- Central de ajuda com FAQ sobre reserva, pagamento, recorrência, cancelamento e limites da demonstração
 - Mensagens de validação, confirmação, falha e estado vazio
 
 ### Experiência do proprietário
