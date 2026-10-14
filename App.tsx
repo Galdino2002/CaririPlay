@@ -1,356 +1,476 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, ShieldCheck, Trophy, X } from "lucide-react-native";
+import {
+  ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Compass, Heart,
+  Home, MapPin, Plus, Search, Settings2, ShieldCheck, SlidersHorizontal,
+  Trophy, UserRound, Wallet, X, Volleyball, CircleDollarSign, ClipboardList,
+} from "lucide-react-native";
 import { mockVenue } from "./src/data/mockData";
-import { loadCourts, loadReservations, saveReservations } from "./src/services/localStore";
+import { loadCourts, loadReservations, saveCourts, saveReservations } from "./src/services/localStore";
 import type { Court, Reservation, ReservationStatus } from "./src/types";
+import { colors, radius, spacing } from "./src/design-system/tokens";
+import { AppButton } from "./src/components/atoms/AppButton";
+import { AppText } from "./src/components/atoms/AppText";
+import { StatusBadge } from "./src/components/atoms/StatusBadge";
+import { SectionHeading } from "./src/components/molecules/SectionHeading";
+import { TimeSlot } from "./src/components/molecules/TimeSlot";
 
-type Tab = "Início" | "Agenda" | "Quadras" | "Reservas";
+type Role = "Cliente" | "Gestão";
+type Screen = "Início" | "Explorar" | "Reservas" | "Favoritos" | "Painel" | "Agenda" | "Quadras" | "booking";
+type SportFilter = "Todas" | "Society" | "Vôlei";
 
-const COLORS = {
-  background: "#07130F",
-  surface: "#101F19",
-  surfaceRaised: "#172A22",
-  border: "#263B30",
-  primary: "#B8F36B",
-  text: "#F4F7F2",
-  muted: "#9BAFA3",
-  green: "#58D68D",
-  orange: "#F4B860",
-  red: "#F07878",
+const currency = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
+const todayKey = () => {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 };
+const dateOffset = (offset: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+};
+const dateLabel = (date: string, includeWeekday = false) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("pt-BR", includeWeekday
+    ? { weekday: "short", day: "2-digit", month: "short" }
+    : { day: "2-digit", month: "long" });
+};
+const initials = (value: string) => value.split(" ").filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
 
-const currency = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-
-function dateLabel(date: string) {
-  const [year, month, day] = date.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+function AppCard({ children, style }: { children: React.ReactNode; style?: object }) {
+  return <View style={[styles.card, style]}>{children}</View>;
 }
 
-function todayKey() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function ScreenTitle({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
+  return <View style={styles.screenTitleWrap}>
+    {eyebrow ? <AppText variant="caption" color={colors.success} weight="800">{eyebrow.toUpperCase()}</AppText> : null}
+    <AppText variant="display">{title}</AppText>
+    {subtitle ? <AppText color={colors.muted}>{subtitle}</AppText> : null}
+  </View>;
 }
 
-function StatusPill({ status }: { status: ReservationStatus }) {
-  const color = status === "Confirmada" || status === "Concluída"
-    ? COLORS.green
-    : status === "Pendente" ? COLORS.orange : COLORS.red;
-  return (
-    <View style={[styles.statusPill, { borderColor: color + "55", backgroundColor: color + "18" }]}>
-      <Text style={[styles.statusText, { color }]}>{status}</Text>
+function EmptyState({ icon, title, description, action, onAction }: { icon?: React.ReactNode; title: string; description: string; action?: string; onAction?: () => void }) {
+  return <View style={styles.emptyState}>
+    <View style={styles.emptyIcon}>{icon ?? <CalendarDays color={colors.muted} size={24} />}</View>
+    <AppText variant="subtitle">{title}</AppText>
+    <AppText color={colors.muted} style={styles.centerText}>{description}</AppText>
+    {action && onAction ? <AppButton label={action} onPress={onAction} variant="secondary" /> : null}
+  </View>;
+}
+
+function CourtCard({ court, venueName, onPress, favorite, onFavorite }: {
+  court: Court; venueName: string; onPress: () => void; favorite: boolean; onFavorite: () => void;
+}) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Ver ${court.name}, ${currency(court.pricePerHour)} por hora`} onPress={onPress} style={({ pressed }) => [styles.venueCard, pressed && styles.pressed]}>
+    <View style={styles.courtArtwork}>
+      <View style={styles.artworkBadge}><Trophy size={14} color={colors.primary} /><Text style={styles.artworkBadgeText}>{court.sport}</Text></View>
+      <View style={styles.fieldLines}><View style={styles.fieldCircle} /><View style={styles.fieldMidline} /></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} hitSlop={10} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={styles.favoriteButton}>
+        <Heart size={19} color={favorite ? colors.danger : colors.primary} fill={favorite ? colors.danger : "transparent"} />
+      </Pressable>
+      <View style={styles.artworkCaption}><Text style={styles.artworkVenue}>{venueName}</Text><Text style={styles.artworkLocation}><MapPin size={12} color="#FFFFFF" /> Crato, CE</Text></View>
     </View>
-  );
+    <View style={styles.venueCardBody}>
+      <View style={styles.venueTitleRow}>
+        <View style={{ flex: 1, gap: 3 }}><AppText variant="subtitle">{court.name}</AppText><AppText variant="small" color={colors.muted}>Reserva por hora · Consulte horários</AppText></View>
+        <View style={styles.priceBlock}><AppText variant="subtitle" weight="800">{currency(court.pricePerHour)}</AppText><AppText variant="caption" color={colors.muted}>/ hora</AppText></View>
+      </View>
+      <View style={styles.venueFooter}><View style={styles.availableTag}><View style={styles.availableDot} /><AppText variant="caption" color={colors.success} weight="700">Consulte disponibilidade</AppText></View><ChevronRight color={colors.muted} size={19} /></View>
+    </View>
+  </Pressable>;
+}
+
+function ReservationCard({ reservation, court, ownerMode, onStatus }: {
+  reservation: Reservation; court?: Court; ownerMode: boolean; onStatus: (reservation: Reservation, status: ReservationStatus) => void;
+}) {
+  return <AppCard>
+    <View style={styles.reservationHeader}>
+      <View style={styles.reservationAvatar}><AppText color={colors.primary} weight="800">{initials(reservation.customerName)}</AppText></View>
+      <View style={{ flex: 1, gap: 3 }}>
+        <AppText weight="700">{ownerMode ? reservation.customerName : (court?.name ?? "Quadra")}</AppText>
+        <AppText variant="small" color={colors.muted}>{ownerMode ? (court?.name ?? "Quadra") : mockVenue.name}</AppText>
+      </View>
+      <StatusBadge status={reservation.status} />
+    </View>
+    <View style={styles.reservationDetails}>
+      <View style={styles.metaLine}><CalendarDays size={15} color={colors.success} /><AppText variant="small">{dateLabel(reservation.date, true)}</AppText></View>
+      <View style={styles.metaLine}><Clock3 size={15} color={colors.success} /><AppText variant="small">{reservation.startTime}–{reservation.endTime}</AppText></View>
+      <View style={styles.metaLine}><CircleDollarSign size={15} color={colors.success} /><AppText variant="small" weight="700">{currency(court?.pricePerHour ?? 0)}</AppText></View>
+    </View>
+    {ownerMode && reservation.status === "Pendente" ? <View style={styles.inlineActions}>
+      <View style={{ flex: 1 }}><AppButton label="Confirmar" onPress={() => onStatus(reservation, "Confirmada")} compact icon={<Check size={15} color={colors.primary} />} /></View>
+      <View style={{ flex: 1 }}><AppButton label="Recusar" onPress={() => onStatus(reservation, "Cancelada")} compact variant="danger" icon={<X size={15} color={colors.danger} />} /></View>
+    </View> : null}
+    {ownerMode && reservation.status === "Confirmada" ? <View style={styles.inlineActions}>
+      <View style={{ flex: 1 }}><AppButton label="Concluir reserva" onPress={() => onStatus(reservation, "Concluída")} compact variant="secondary" icon={<Check size={15} color={colors.success} />} /></View>
+      <View style={{ flex: 1 }}><AppButton label="Cancelar" onPress={() => onStatus(reservation, "Cancelada")} compact variant="danger" icon={<X size={15} color={colors.danger} />} /></View>
+    </View> : null}
+  </AppCard>;
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("Início");
+  const [role, setRole] = useState<Role>("Cliente");
+  const [screen, setScreen] = useState<Screen>("Início");
   const [courts, setCourts] = useState<Court[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [sportFilter, setSportFilter] = useState<SportFilter>("Todas");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [selectedCourtId, setSelectedCourtId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(todayKey());
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [bookingNote, setBookingNote] = useState("");
+  const [showCourtForm, setShowCourtForm] = useState(false);
+  const [courtName, setCourtName] = useState("");
+  const [courtPrice, setCourtPrice] = useState("");
+  const [courtSport, setCourtSport] = useState<"Society" | "Vôlei">("Society");
+  const [courtSearch, setCourtSearch] = useState("");
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    const [loadedCourts, loadedReservations] = await Promise.all([loadCourts(), loadReservations()]);
-    setCourts(loadedCourts);
-    setReservations(loadedReservations);
-    setLoading(false);
+    try {
+      const [loadedCourts, loadedReservations] = await Promise.all([loadCourts(), loadReservations()]);
+      setCourts(loadedCourts);
+      setReservations(loadedReservations);
+    } catch {
+      Alert.alert("Não foi possível carregar", "Tente fechar e abrir o aplicativo novamente.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
-  const todayReservations = useMemo(
-    () => reservations.filter((reservation) => reservation.date === todayKey() && reservation.status !== "Cancelada"),
-    [reservations],
-  );
-  const pendingCount = reservations.filter((reservation) => reservation.status === "Pendente").length;
-  const confirmedCount = todayReservations.filter((reservation) => reservation.status === "Confirmada").length;
-  const revenueToday = todayReservations
-    .filter((reservation) => reservation.status === "Confirmada" || reservation.status === "Concluída")
-    .reduce((total, reservation) => {
-      const court = courts.find((item) => item.id === reservation.courtId);
-      return total + (court?.pricePerHour ?? 0);
-    }, 0);
+  const selectedCourt = courts.find(court => court.id === selectedCourtId);
+  const activeCourts = courts.filter(court => court.active);
+  const filteredCourts = useMemo(() => activeCourts.filter(court => {
+    const query = search.trim().toLocaleLowerCase("pt-BR");
+    const matchesQuery = !query || court.name.toLocaleLowerCase("pt-BR").includes(query) || mockVenue.name.toLocaleLowerCase("pt-BR").includes(query) || mockVenue.city.toLocaleLowerCase("pt-BR").includes(query);
+    return matchesQuery && (sportFilter === "Todas" || court.sport === sportFilter);
+  }), [activeCourts, search, sportFilter]);
+  const customerReservations = reservations.filter(item => item.customerName === customerName.trim() && customerName.trim().length > 0);
+  const todayReservations = reservations.filter(item => item.date === todayKey() && item.status !== "Cancelada");
+  const pendingCount = reservations.filter(item => item.status === "Pendente").length;
+  const reservedValue = todayReservations.filter(item => item.status === "Confirmada" || item.status === "Concluída").reduce((sum, item) => sum + (courts.find(c => c.id === item.courtId)?.pricePerHour ?? 0), 0);
+  const timeSlots = Array.from({ length: 16 }, (_, index) => `${String(index + 7).padStart(2, "0")}:00`);
+  const isSlotTaken = (courtId: string, date: string, startTime: string) => reservations.some(item => item.courtId === courtId && item.date === date && item.startTime === startTime && item.status !== "Cancelada");
+  const availableSlots = timeSlots.filter(time => !selectedCourt || !isSlotTaken(selectedCourt.id, selectedDate, time));
 
-  const updateStatus = (reservation: Reservation, status: ReservationStatus) => {
-    Alert.alert(
-      status === "Cancelada" ? "Cancelar reserva?" : `${status} reserva`,
-      `${reservation.customerName} • ${reservation.startTime}`,
-      [
-        { text: "Voltar", style: "cancel" },
-        {
-          text: "Confirmar",
-          style: status === "Cancelada" ? "destructive" : "default",
-          onPress: () => {
-            const updated = reservations.map((item) => item.id === reservation.id ? { ...item, status } : item);
-            setReservations(updated);
-            void saveReservations(updated);
-          },
-        },
-      ],
-    );
+  const changeStatus = (reservation: Reservation, status: ReservationStatus) => {
+    Alert.alert(status === "Cancelada" ? "Cancelar esta reserva?" : `${status} reserva?`, `${reservation.customerName} · ${reservation.date} · ${reservation.startTime}`, [
+      { text: "Voltar", style: "cancel" },
+      { text: "Confirmar", style: status === "Cancelada" ? "destructive" : "default", onPress: () => {
+        const updated = reservations.map(item => item.id === reservation.id ? { ...item, status } : item);
+        setReservations(updated);
+        void saveReservations(updated).catch(() => Alert.alert("Erro ao salvar", "A alteração não foi salva neste dispositivo."));
+      } },
+    ]);
   };
 
-  const createDemoReservation = () => {
-    const availableCourt = courts.find((court) => court.active);
-    if (!availableCourt) {
-      Alert.alert("Nenhuma quadra ativa", "Cadastre ou ative uma quadra antes de criar uma reserva.");
+  const openBooking = (court: Court) => {
+    setSelectedCourtId(court.id);
+    setSelectedDate(todayKey());
+    setSelectedTime(null);
+    setBookingNote("");
+    setScreen("booking");
+  };
+
+  const submitBooking = async () => {
+    if (!selectedCourt || !customerName.trim() || customerPhone.replace(/\D/g, "").length < 10 || !selectedTime) {
+      Alert.alert("Confira seus dados", "Informe nome, telefone válido, data e horário para continuar.");
       return;
     }
-    const slots = ["07:00", "08:00", "09:00", "10:00", "14:00", "15:00", "16:00", "21:00", "22:00"];
-    const slot = slots.find((time) => !reservations.some((item) =>
-      item.courtId === availableCourt.id && item.date === todayKey() && item.startTime === time && item.status !== "Cancelada",
-    ));
-    if (!slot) {
-      Alert.alert("Sem horário de demonstração", "Todos os horários de teste desta quadra estão ocupados.");
+    if (isSlotTaken(selectedCourt.id, selectedDate, selectedTime)) {
+      Alert.alert("Horário indisponível", "Alguém acabou de solicitar esse horário. Escolha outro.");
+      setSelectedTime(null);
       return;
     }
-    const [hour] = slot.split(":").map(Number);
+    const hour = Number(selectedTime.slice(0, 2));
     const newReservation: Reservation = {
-      id: `res-${Date.now()}`,
-      customerName: "Novo cliente",
-      phone: "",
-      courtId: availableCourt.id,
-      date: todayKey(),
-      startTime: slot,
-      endTime: `${String(hour + 1).padStart(2, "0")}:00`,
-      status: "Pendente",
+      id: `res-${Date.now()}`, customerName: customerName.trim(), phone: customerPhone.trim(),
+      courtId: selectedCourt.id, date: selectedDate, startTime: selectedTime,
+      endTime: `${String(hour + 1).padStart(2, "0")}:00`, status: "Pendente",
+      notes: bookingNote.trim() || undefined,
     };
     const updated = [newReservation, ...reservations];
-    setReservations(updated);
-    void saveReservations(updated);
-    Alert.alert("Reserva de demonstração criada", `Hoje às ${slot}. Você pode confirmar na aba Reservas.`);
+    try {
+      await saveReservations(updated);
+      setReservations(updated);
+      setSelectedTime(null);
+      setScreen("Reservas");
+      Alert.alert("Solicitação enviada", "Sua reserva está aguardando a confirmação do estabelecimento. O pagamento é feito diretamente ao local.");
+    } catch {
+      Alert.alert("Não foi possível reservar", "Seus dados continuam na tela. Tente novamente.");
+    }
   };
 
-  const renderReservation = ({ item }: { item: Reservation }) => {
-    const court = courts.find((candidate) => candidate.id === item.courtId);
-    return (
-      <View style={styles.reservationCard}>
-        <View style={styles.reservationTop}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{item.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</Text></View>
-          <View style={styles.reservationInfo}>
-            <Text style={styles.cardTitle}>{item.customerName}</Text>
-            <Text style={styles.mutedText}>{court?.name ?? "Quadra removida"} · {dateLabel(item.date)}</Text>
-          </View>
-          <StatusPill status={item.status} />
-        </View>
-        <View style={styles.reservationBottom}>
-          <View style={styles.inlineMeta}><Clock3 color={COLORS.primary} size={15} /><Text style={styles.metaText}>{item.startTime}–{item.endTime}</Text></View>
-          <Text style={styles.priceText}>{currency(court?.pricePerHour ?? 0)}</Text>
-        </View>
-        {item.status === "Pendente" && (
-          <View style={styles.actionRow}>
-            <Pressable style={styles.confirmButton} onPress={() => updateStatus(item, "Confirmada")}><Check color={COLORS.background} size={15} /><Text style={styles.confirmButtonText}>Confirmar</Text></Pressable>
-            <Pressable style={styles.cancelButton} onPress={() => updateStatus(item, "Cancelada")}><X color={COLORS.red} size={15} /><Text style={styles.cancelButtonText}>Cancelar</Text></Pressable>
-          </View>
-        )}
-        {item.status === "Confirmada" && (
-          <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => updateStatus(item, "Concluída")}><Check color={COLORS.green} size={15} /><Text style={styles.secondaryButtonText}>Marcar como concluída</Text></Pressable>
-            <Pressable style={styles.cancelButton} onPress={() => updateStatus(item, "Cancelada")}><X color={COLORS.red} size={15} /><Text style={styles.cancelButtonText}>Cancelar</Text></Pressable>
-          </View>
-        )}
-      </View>
-    );
+  const addCourt = async () => {
+    const price = Number(courtPrice.replace(",", "."));
+    if (!courtName.trim() || !Number.isFinite(price) || price <= 0) {
+      Alert.alert("Confira os dados", "Informe o nome da quadra e um preço por hora maior que zero.");
+      return;
+    }
+    const updated = [...courts, { id: `court-${Date.now()}`, name: courtName.trim(), sport: courtSport, pricePerHour: price, active: true }];
+    try {
+      await saveCourts(updated);
+      setCourts(updated);
+      setCourtName("");
+      setCourtPrice("");
+      setShowCourtForm(false);
+    } catch {
+      Alert.alert("Erro ao salvar", "Não foi possível salvar a quadra neste dispositivo.");
+    }
   };
 
-  if (loading) {
-    return <SafeAreaView style={styles.loading}><StatusBar barStyle="light-content" /><ActivityIndicator color={COLORS.primary} size="large" /><Text style={styles.mutedText}>Preparando o CaririPlay...</Text></SafeAreaView>;
-  }
+  const toggleCourt = async (court: Court) => {
+    const updated = courts.map(item => item.id === court.id ? { ...item, active: !item.active } : item);
+    try { await saveCourts(updated); setCourts(updated); }
+    catch { Alert.alert("Erro ao salvar", "Não foi possível atualizar a quadra."); }
+  };
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
-      <View style={styles.header}>
-        <View style={styles.brandMark}><Trophy color={COLORS.background} size={21} strokeWidth={2.5} /></View>
-        <View style={styles.brandTextWrap}>
-          <Text style={styles.brandName}>Cariri<Text style={{ color: COLORS.primary }}>Play</Text></Text>
-          <View style={styles.locationLine}><MapPin color={COLORS.muted} size={12} /><Text style={styles.locationText}>{mockVenue.name} · {mockVenue.city}</Text></View>
+  const toggleFavorite = (courtId: string) => setFavorites(previous => previous.includes(courtId) ? previous.filter(id => id !== courtId) : [...previous, courtId]);
+
+  const switchRole = (nextRole: Role) => {
+    setRole(nextRole);
+    setScreen(nextRole === "Cliente" ? "Início" : "Painel");
+  };
+
+  const navItems = role === "Cliente"
+    ? [
+      { label: "Início" as Screen, icon: Home },
+      { label: "Explorar" as Screen, icon: Compass },
+      { label: "Reservas" as Screen, icon: CalendarDays },
+      { label: "Favoritos" as Screen, icon: Heart },
+    ]
+    : [
+      { label: "Painel" as Screen, icon: Home },
+      { label: "Agenda" as Screen, icon: CalendarDays },
+      { label: "Quadras" as Screen, icon: Trophy },
+      { label: "Reservas" as Screen, icon: ClipboardList },
+    ];
+
+  const renderCourtList = (list: Court[]) => list.length ? list.map(court => (
+    <CourtCard key={court.id} court={court} venueName={mockVenue.name} onPress={() => openBooking(court)}
+      favorite={favorites.includes(court.id)} onFavorite={() => toggleFavorite(court.id)} />
+  )) : <EmptyState icon={<Search color={colors.muted} size={24} />} title="Nenhuma quadra encontrada" description="Tente mudar a busca ou remover alguns filtros." action="Limpar filtros" onAction={() => { setSearch(""); setSportFilter("Todas"); }} />;
+
+  if (loading) return <SafeAreaView style={styles.loading}><StatusBar barStyle="dark-content" /><ActivityIndicator color={colors.success} size="large" /><AppText color={colors.muted}>Preparando sua experiência...</AppText></SafeAreaView>;
+
+  return <SafeAreaView style={styles.safe}>
+    <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <View style={styles.topBar}>
+      <View style={styles.brandLockup}>
+        <View style={styles.brandIcon}><Trophy size={20} color={colors.accent} strokeWidth={2.5} /></View>
+        <View><AppText variant="subtitle" weight="800">CaririPlay</AppText><View style={styles.locationInline}><MapPin size={12} color={colors.muted} /><AppText variant="caption" color={colors.muted}>{role === "Cliente" ? "Esporte perto de você" : mockVenue.name + " · " + mockVenue.city}</AppText></View></View>
+      </View>
+      <View style={styles.roleSwitcher}>
+        {(["Cliente", "Gestão"] as Role[]).map(item => <Pressable key={item} onPress={() => switchRole(item)} accessibilityRole="button" accessibilityState={{ selected: role === item }} style={[styles.roleOption, role === item && styles.roleOptionActive]}><AppText variant="caption" weight="700" color={role === item ? "#FFFFFF" : colors.muted}>{item}</AppText></Pressable>)}
+      </View>
+    </View>
+
+    {screen === "booking" ? <View style={styles.bookingTop}><Pressable onPress={() => setScreen("Explorar")} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Voltar para explorar"><ArrowLeft size={20} color={colors.text} /></Pressable><View style={{ flex: 1 }}><AppText variant="subtitle">Reservar quadra</AppText><AppText variant="small" color={colors.muted}>Revise os detalhes antes de enviar</AppText></View></View> : null}
+
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {role === "Cliente" && screen === "Início" ? <>
+        <View style={styles.hero}>
+          <View style={styles.heroTopline}><View style={styles.livePill}><View style={styles.availableDot} /><AppText variant="caption" color={colors.success} weight="800">CARIRI, VAMOS JOGAR?</AppText></View><Volleyball color="#B9F36B" size={25} /></View>
+          <AppText variant="display" color="#FFFFFF" style={styles.heroTitle}>Seu próximo jogo começa aqui.</AppText>
+          <AppText color="#D0DBD2">Encontre uma quadra, escolha o horário e combine o jogo com sua turma.</AppText>
+          <Pressable style={styles.searchBox} onPress={() => setScreen("Explorar")} accessibilityRole="button" accessibilityLabel="Buscar quadras e horários"><Search size={19} color={colors.muted} /><AppText color={colors.muted} style={{ flex: 1 }}>Qual quadra você procura?</AppText><ChevronRight size={18} color={colors.muted} /></Pressable>
+          <View style={styles.cityChip}><MapPin size={14} color="#FFFFFF" /><AppText variant="small" color="#FFFFFF">Crato · Juazeiro · Barbalha</AppText></View>
         </View>
-        <View style={styles.demoBadge}><View style={styles.demoDot} /><Text style={styles.demoText}>DEMO</Text></View>
-      </View>
+        <View style={styles.sportSection}>
+          <SectionHeading title="Qual é o jogo?" subtitle="Escolha sua modalidade" />
+          <View style={styles.sportCards}>
+            <Pressable style={styles.sportCard} onPress={() => { setSportFilter("Society"); setScreen("Explorar"); }}><View style={[styles.sportIcon, { backgroundColor: "#E7F5EB" }]}><Trophy size={22} color={colors.success} /></View><AppText weight="700">Society</AppText><AppText variant="caption" color={colors.muted}>Futebol</AppText></Pressable>
+            <Pressable style={styles.sportCard} onPress={() => { setSportFilter("Vôlei"); setScreen("Explorar"); }}><View style={[styles.sportIcon, { backgroundColor: "#FFF3D8" }]}><Volleyball size={22} color={colors.warning} /></View><AppText weight="700">Vôlei</AppText><AppText variant="caption" color={colors.muted}>Quadras</AppText></Pressable>
+            <Pressable style={styles.sportCard} onPress={() => { setSportFilter("Todas"); setScreen("Explorar"); }}><View style={[styles.sportIcon, { backgroundColor: "#EAF0FA" }]}><Compass size={22} color="#3D62A6" /></View><AppText weight="700">Ver tudo</AppText><AppText variant="caption" color={colors.muted}>Explorar</AppText></Pressable>
+          </View>
+        </View>
+        <SectionHeading title="Quadras para conhecer" subtitle="Confira preços e consulte horários" action="Ver todas" />
+        {renderCourtList(activeCourts.slice(0, 3))}
+        <View style={styles.trustStrip}><ShieldCheck size={19} color={colors.success} /><View style={{ flex: 1, gap: 2 }}><AppText weight="700">Sem surpresas na reserva</AppText><AppText variant="small" color={colors.muted}>Você vê o preço antes de enviar a solicitação. O pagamento é feito direto ao estabelecimento.</AppText></View></View>
+      </> : null}
 
-      <View style={styles.tabs}>
-        {(["Início", "Agenda", "Quadras", "Reservas"] as Tab[]).map((item) => (
-          <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.activeTab]}>
-            <Text style={[styles.tabText, tab === item && styles.activeTabText]}>{item}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {role === "Cliente" && screen === "Explorar" ? <>
+        <ScreenTitle eyebrow="Marketplace esportivo" title="Encontre sua quadra" subtitle="Compare espaços e escolha o melhor horário para jogar." />
+        <View style={styles.searchInputWrap}><Search size={19} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Quadra, estabelecimento ou cidade" placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" accessibilityLabel="Buscar quadras" /><Pressable onPress={() => { setSearch(""); setSportFilter("Todas"); }} accessibilityRole="button" accessibilityLabel="Limpar busca"><SlidersHorizontal size={18} color={colors.success} /></Pressable></View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          {(["Todas", "Society", "Vôlei"] as SportFilter[]).map(filter => <Pressable key={filter} onPress={() => setSportFilter(filter)} style={[styles.filterChip, sportFilter === filter && styles.filterChipActive]}><AppText variant="small" weight="700" color={sportFilter === filter ? "#FFFFFF" : colors.muted}>{filter}</AppText></Pressable>)}
+        </ScrollView>
+        <AppText variant="small" color={colors.muted}>{filteredCourts.length} {filteredCourts.length === 1 ? "quadra encontrada" : "quadras encontradas"}</AppText>
+        {renderCourtList(filteredCourts)}
+      </> : null}
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {tab === "Início" && (
-          <>
-            <View style={styles.hero}>
-              <View style={styles.heroGlow} />
-              <Text style={styles.eyebrow}>PAINEL DO PROPRIETÁRIO</Text>
-              <Text style={styles.heroTitle}>Seu espaço esportivo,{ "\n" }sob controle.</Text>
-              <Text style={styles.heroSubtitle}>Acompanhe sua operação e mantenha o jogo em movimento.</Text>
-              <Pressable style={styles.heroButton} onPress={() => setTab("Agenda")}><CalendarDays color={COLORS.background} size={17} /><Text style={styles.heroButtonText}>Ver agenda de hoje</Text></Pressable>
-            </View>
-            <Text style={styles.sectionTitle}>Resumo de hoje</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}><View style={styles.statIcon}><CalendarDays color={COLORS.primary} size={18} /></View><Text style={styles.statValue}>{todayReservations.length}</Text><Text style={styles.statLabel}>Reservas hoje</Text></View>
-              <View style={styles.statCard}><View style={styles.statIcon}><Clock3 color={COLORS.orange} size={18} /></View><Text style={styles.statValue}>{pendingCount}</Text><Text style={styles.statLabel}>Aguardando</Text></View>
-              <View style={styles.statCard}><View style={styles.statIcon}><ShieldCheck color={COLORS.green} size={18} /></View><Text style={styles.statValue}>{confirmedCount}</Text><Text style={styles.statLabel}>Confirmadas hoje</Text></View>
-              <View style={styles.statCard}><View style={styles.statIcon}><CircleDollarSign color={COLORS.primary} size={18} /></View><Text style={styles.statValue}>{currency(revenueToday)}</Text><Text style={styles.statLabel}>Valor reservado*</Text></View>
-            </View>
-            <Text style={styles.sectionTitle}>Próximas reservas</Text>
-            {todayReservations.length ? todayReservations.slice().sort((a, b) => a.startTime.localeCompare(b.startTime)).slice(0, 3).map((item) => <View key={item.id}>{renderReservation({ item })}</View>) : <EmptyState title="Dia livre por enquanto" description="Crie uma reserva de demonstração para testar o fluxo." />}
-            <Text style={styles.disclaimer}>*Estimativa de reservas confirmadas, não representa pagamento recebido.</Text>
-            <Pressable style={styles.primaryButton} onPress={createDemoReservation}><Plus color={COLORS.background} size={18} /><Text style={styles.primaryButtonText}>Criar reserva de teste</Text></Pressable>
-          </>
-        )}
+      {role === "Cliente" && screen === "booking" ? <>
+        {selectedCourt ? <>
+          <View style={styles.bookingCourtSummary}><View style={styles.bookingSportIcon}><Trophy size={22} color={colors.success} /></View><View style={{ flex: 1, gap: 3 }}><AppText variant="subtitle">{selectedCourt.name}</AppText><AppText variant="small" color={colors.muted}>{mockVenue.name} · {mockVenue.city} · {selectedCourt.sport}</AppText></View><View style={{ alignItems: "flex-end" }}><AppText variant="subtitle" weight="800">{currency(selectedCourt.pricePerHour)}</AppText><AppText variant="caption" color={colors.muted}>por hora</AppText></View></View>
+          <SectionHeading title="1. Escolha o dia" subtitle="Selecione uma data para consultar horários." />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateOptions}>
+            {Array.from({ length: 7 }, (_, i) => dateOffset(i)).map((date, i) => <Pressable key={date} onPress={() => { setSelectedDate(date); setSelectedTime(null); }} style={[styles.dateOption, selectedDate === date && styles.dateOptionActive]}><AppText variant="caption" color={selectedDate === date ? colors.accent : colors.muted} weight="700">{i === 0 ? "HOJE" : i === 1 ? "AMANHÃ" : dateLabel(date).split(" de ")[0].toUpperCase()}</AppText><AppText variant="subtitle" color={selectedDate === date ? "#FFFFFF" : colors.text}>{date.slice(8, 10)}</AppText><AppText variant="caption" color={selectedDate === date ? "#D0DBD2" : colors.muted}>{dateLabel(date).split(" de ")[1]?.slice(0, 3) ?? ""}</AppText></Pressable>)}
+          </ScrollView>
+          <SectionHeading title="2. Escolha o horário" subtitle={`Disponibilidade para ${dateLabel(selectedDate)}`} />
+          {availableSlots.length ? <View style={styles.timeGrid}>{timeSlots.map(time => <TimeSlot key={time} time={time} selected={selectedTime === time} unavailable={isSlotTaken(selectedCourt.id, selectedDate, time)} onPress={() => setSelectedTime(time)} />)}</View> : <EmptyState title="Sem horários livres" description="Escolha outro dia para ver novas opções." />}
+          <SectionHeading title="3. Seus dados" subtitle="O estabelecimento usará essas informações para confirmar a solicitação." />
+          <AppCard style={{ gap: 13 }}>
+            <View style={styles.formField}><AppText variant="small" weight="700">Nome completo</AppText><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Como podemos te chamar?" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="words" accessibilityLabel="Nome completo" /></View>
+            <View style={styles.formField}><AppText variant="small" weight="700">Telefone / WhatsApp</AppText><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="(88) 99999-9999" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" accessibilityLabel="Telefone ou WhatsApp" /></View>
+            <View style={styles.formField}><AppText variant="small" weight="700">Observação (opcional)</AppText><TextInput value={bookingNote} onChangeText={setBookingNote} placeholder="Ex.: vamos levar coletes" placeholderTextColor={colors.muted} style={[styles.input, styles.noteInput]} multiline accessibilityLabel="Observação da reserva" /></View>
+          </AppCard>
+          <View style={styles.bookingTotal}><View style={{ flex: 1, gap: 3 }}><AppText variant="small" color={colors.muted}>Total estimado · 1 hora</AppText><AppText variant="heading">{currency(selectedCourt.pricePerHour)}</AppText></View><AppText variant="caption" color={colors.muted}>Pagamento direto ao local</AppText></View>
+          <AppButton label="Solicitar reserva" onPress={() => void submitBooking()} disabled={!selectedTime || !customerName.trim() || customerPhone.replace(/\D/g, "").length < 10} icon={<ChevronRight size={18} color={colors.primary} />} />
+          <AppText variant="caption" color={colors.muted} style={styles.centerText}>Sua solicitação ficará pendente até o estabelecimento confirmar. Nenhum pagamento é processado pelo CaririPlay.</AppText>
+        </> : <EmptyState title="Quadra não encontrada" description="Volte para explorar e selecione uma quadra." action="Explorar quadras" onAction={() => setScreen("Explorar")} />}
+      </> : null}
 
-        {tab === "Agenda" && (
-          <>
-            <ScreenHeading title="Agenda" subtitle="Visualize as reservas de hoje e os horários ocupados." />
-            <View style={styles.dateCard}><CalendarDays color={COLORS.primary} size={20} /><View style={{ flex: 1 }}><Text style={styles.cardTitle}>Hoje · {dateLabel(todayKey())}</Text><Text style={styles.mutedText}>{mockVenue.openingTime}–{mockVenue.closingTime}</Text></View><Text style={styles.dateCount}>{todayReservations.length} reservas</Text></View>
-            {courts.filter((court) => court.active).map((court) => {
-              const items = todayReservations.filter((reservation) => reservation.courtId === court.id).sort((a, b) => a.startTime.localeCompare(b.startTime));
-              return <View key={court.id} style={styles.courtSchedule}><View style={styles.courtScheduleHead}><Text style={styles.cardTitle}>{court.name}</Text><Text style={styles.mutedText}>{currency(court.pricePerHour)}/h</Text></View>{items.length ? items.map((item) => <View key={item.id} style={styles.slotRow}><View style={styles.slotTime}><Text style={styles.slotTimeText}>{item.startTime}</Text><Text style={styles.slotEndText}>{item.endTime}</Text></View><View style={styles.slotBar}><Text style={styles.slotCustomer}>{item.customerName}</Text><Text style={styles.slotStatus}>{item.status}</Text></View></View>) : <Text style={styles.emptyInline}>Nenhuma reserva para hoje.</Text>}</View>;
-            })}
-          </>
-        )}
+      {role === "Cliente" && screen === "Reservas" ? <>
+        <ScreenTitle eyebrow="Seus jogos" title="Minhas reservas" subtitle="Acompanhe suas solicitações e os próximos jogos." />
+        <AppCard style={{ gap: 10 }}><AppText weight="700">Consultar por telefone</AppText><TextInput value={customerPhone} onChangeText={setCustomerPhone} placeholder="Digite o telefone usado na reserva" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" /><AppText variant="caption" color={colors.muted}>Nesta demonstração, informe também o nome utilizado ao reservar para localizar os registros.</AppText><TextInput value={customerName} onChangeText={setCustomerName} placeholder="Nome utilizado na reserva" placeholderTextColor={colors.muted} style={styles.input} /></AppCard>
+        {customerReservations.length ? customerReservations.map(item => <ReservationCard key={item.id} reservation={item} court={courts.find(c => c.id === item.courtId)} ownerMode={false} onStatus={changeStatus} />) : <EmptyState icon={<CalendarDays size={24} color={colors.muted} />} title="Suas reservas aparecerão aqui" description="Informe o mesmo nome utilizado ao solicitar a reserva. Na versão com conta, você verá seu histórico automaticamente." action="Encontrar quadra" onAction={() => setScreen("Explorar")} />}
+      </> : null}
 
-        {tab === "Quadras" && (
-          <>
-            <ScreenHeading title="Quadras" subtitle="Estrutura cadastrada neste estabelecimento." />
-            {courts.map((court) => <View key={court.id} style={styles.courtCard}><View style={styles.courtSymbol}><Trophy color={COLORS.primary} size={22} /></View><View style={styles.courtDetails}><Text style={styles.cardTitle}>{court.name}</Text><Text style={styles.mutedText}>{court.sport} · {court.active ? "Ativa" : "Inativa"}</Text><Text style={styles.courtPrice}>{currency(court.pricePerHour)} <Text style={styles.mutedText}>/ hora</Text></Text></View><View style={[styles.activeDot, { backgroundColor: court.active ? COLORS.green : COLORS.red }]} /></View>)}
-            <View style={styles.infoPanel}><Text style={styles.infoTitle}>Próxima melhoria</Text><Text style={styles.mutedText}>Cadastro e edição de quadras estarão disponíveis na próxima etapa do MVP. Por enquanto, estes dados são exemplos.</Text></View>
-          </>
-        )}
+      {role === "Cliente" && screen === "Favoritos" ? <>
+        <ScreenTitle eyebrow="Salvos para depois" title="Seus favoritos" subtitle="Acesse rapidamente as quadras que você gostou." />
+        {renderCourtList(activeCourts.filter(court => favorites.includes(court.id)))}
+      </> : null}
 
-        {tab === "Reservas" && (
-          <>
-            <ScreenHeading title="Reservas" subtitle="Confirme solicitações e acompanhe os agendamentos." />
-            <View style={styles.filterSummary}><Text style={styles.mutedText}>{reservations.length} registros no total</Text><Text style={styles.pendingText}>{pendingCount} pendentes</Text></View>
-            {reservations.slice().sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)).map((item) => <View key={item.id}>{renderReservation({ item })}</View>)}
-            <Pressable style={styles.primaryButton} onPress={createDemoReservation}><Plus color={COLORS.background} size={18} /><Text style={styles.primaryButtonText}>Criar reserva de teste</Text></Pressable>
-          </>
-        )}
-      </ScrollView>
+      {role === "Gestão" && screen === "Painel" ? <>
+        <View style={styles.ownerHero}><AppText variant="caption" color={colors.accent} weight="800">ÁREA DO ESTABELECIMENTO</AppText><AppText variant="display" color="#FFFFFF">Bom dia, Arena Cariri.</AppText><AppText color="#D0DBD2">Aqui está o resumo da sua operação.</AppText><View style={styles.ownerHeroFooter}><View style={styles.ownerHeroMeta}><MapPin size={14} color="#D0DBD2" /><AppText variant="small" color="#D0DBD2">{mockVenue.city}</AppText></View><View style={styles.ownerHeroMeta}><Clock3 size={14} color="#D0DBD2" /><AppText variant="small" color="#D0DBD2">{mockVenue.openingTime}–{mockVenue.closingTime}</AppText></View></View></View>
+        <View style={styles.statsGrid}>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><CalendarDays color={colors.success} size={18} /></View><AppText variant="heading">{todayReservations.length}</AppText><AppText variant="small" color={colors.muted}>Reservas hoje</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><Clock3 color={colors.warning} size={18} /></View><AppText variant="heading">{pendingCount}</AppText><AppText variant="small" color={colors.muted}>Aguardando</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><ShieldCheck color={colors.success} size={18} /></View><AppText variant="heading">{todayReservations.filter(r => r.status === "Confirmada").length}</AppText><AppText variant="small" color={colors.muted}>Confirmadas hoje</AppText></AppCard>
+          <AppCard style={styles.statCard}><View style={styles.statIcon}><Wallet color={colors.success} size={18} /></View><AppText variant="heading" style={{ fontSize: 20 }}>{currency(reservedValue)}</AppText><AppText variant="small" color={colors.muted}>Valor reservado*</AppText></AppCard>
+        </View>
+        <SectionHeading title="Precisa da sua atenção" subtitle="Solicitações esperando resposta" action={pendingCount ? `${pendingCount} pendente(s)` : undefined} />
+        {reservations.filter(r => r.status === "Pendente").length ? reservations.filter(r => r.status === "Pendente").map(item => <ReservationCard key={item.id} reservation={item} court={courts.find(c => c.id === item.courtId)} ownerMode onStatus={changeStatus} />) : <EmptyState title="Tudo em dia!" description="Você não tem solicitações pendentes." />}
+        <AppText variant="caption" color={colors.muted}>*Valor estimado de reservas confirmadas ou concluídas, não representa pagamento recebido.</AppText>
+        <AppButton label="Abrir agenda" onPress={() => setScreen("Agenda")} icon={<CalendarDays size={17} color={colors.primary} />} />
+      </> : null}
 
-      <View style={styles.bottomBar}>
-        {([
-          { label: "Início" as Tab, icon: Trophy },
-          { label: "Agenda" as Tab, icon: CalendarDays },
-          { label: "Quadras" as Tab, icon: MapPin },
-          { label: "Reservas" as Tab, icon: Clock3 },
-        ]).map(({ label, icon: Icon }) => (
-          <Pressable key={label} onPress={() => setTab(label)} style={styles.bottomItem}>
-            <Icon size={19} color={tab === label ? COLORS.primary : COLORS.muted} />
-            <Text style={[styles.bottomLabel, tab === label && styles.bottomLabelActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </SafeAreaView>
-  );
-}
+      {role === "Gestão" && screen === "Agenda" ? <>
+        <ScreenTitle eyebrow="Operação" title="Agenda" subtitle={`Reservas do dia · ${dateLabel(todayKey())}`} />
+        <View style={styles.dateCard}><CalendarDays size={20} color={colors.success} /><View style={{ flex: 1 }}><AppText weight="700">Hoje</AppText><AppText variant="small" color={colors.muted}>{mockVenue.openingTime}–{mockVenue.closingTime}</AppText></View><AppText variant="small" color={colors.success} weight="700">{todayReservations.length} reserva(s)</AppText></View>
+        {activeCourts.map(court => {
+          const items = todayReservations.filter(item => item.courtId === court.id).sort((a, b) => a.startTime.localeCompare(b.startTime));
+          return <AppCard key={court.id} style={{ gap: 12 }}><View style={styles.courtScheduleHeader}><View style={{ flex: 1, gap: 2 }}><AppText weight="700">{court.name}</AppText><AppText variant="small" color={colors.muted}>{court.sport}</AppText></View><AppText variant="small" weight="700">{currency(court.pricePerHour)}/h</AppText></View>{items.length ? items.map(item => <View key={item.id} style={styles.agendaRow}><View style={styles.agendaTime}><AppText weight="800">{item.startTime}</AppText><AppText variant="caption" color={colors.muted}>{item.endTime}</AppText></View><View style={styles.agendaBar}><AppText weight="700">{item.customerName}</AppText><AppText variant="caption" color={colors.muted}>{item.status}</AppText></View></View>) : <AppText variant="small" color={colors.muted}>Nenhuma reserva para hoje.</AppText>}</AppCard>;
+        })}
+      </> : null}
 
-function ScreenHeading({ title, subtitle }: { title: string; subtitle: string }) {
-  return <View style={styles.screenHeading}><Text style={styles.screenTitle}>{title}</Text><Text style={styles.screenSubtitle}>{subtitle}</Text></View>;
-}
+      {role === "Gestão" && screen === "Quadras" ? <>
+        <ScreenTitle eyebrow="Seu espaço" title="Quadras" subtitle="Gerencie modalidades, preços e disponibilidade." />
+        <AppButton label={showCourtForm ? "Fechar formulário" : "Adicionar quadra"} onPress={() => setShowCourtForm(value => !value)} icon={showCourtForm ? <X size={17} color={colors.primary} /> : <Plus size={17} color={colors.primary} />} />
+        {showCourtForm ? <AppCard style={{ gap: 14 }}><AppText variant="subtitle">Nova quadra</AppText><View style={styles.formField}><AppText variant="small" weight="700">Nome da quadra</AppText><TextInput value={courtName} onChangeText={setCourtName} placeholder="Ex.: Society 3" placeholderTextColor={colors.muted} style={styles.input} /></View><View style={styles.formField}><AppText variant="small" weight="700">Modalidade</AppText><View style={styles.sportToggle}>{(["Society", "Vôlei"] as const).map(sport => <Pressable key={sport} onPress={() => setCourtSport(sport)} style={[styles.sportToggleItem, courtSport === sport && styles.sportToggleActive]}><AppText weight="700" color={courtSport === sport ? "#FFFFFF" : colors.muted}>{sport}</AppText></Pressable>)}</View></View><View style={styles.formField}><AppText variant="small" weight="700">Preço por hora (R$)</AppText><TextInput value={courtPrice} onChangeText={setCourtPrice} placeholder="Ex.: 120" placeholderTextColor={colors.muted} style={styles.input} keyboardType="decimal-pad" /></View><AppButton label="Salvar quadra" onPress={() => void addCourt()} /></AppCard> : null}
+        {courts.map(court => <AppCard key={court.id} style={styles.manageCourtCard}><View style={styles.bookingSportIcon}><Trophy size={22} color={colors.success} /></View><View style={{ flex: 1, gap: 3 }}><AppText variant="subtitle">{court.name}</AppText><AppText variant="small" color={colors.muted}>{court.sport} · {currency(court.pricePerHour)}/hora</AppText><View style={[styles.activePill, { backgroundColor: court.active ? colors.successSoft : colors.surfaceMuted }]}><AppText variant="caption" color={court.active ? colors.success : colors.muted} weight="700">{court.active ? "Ativa no catálogo" : "Oculta do catálogo"}</AppText></View></View><AppButton label={court.active ? "Desativar" : "Ativar"} onPress={() => void toggleCourt(court)} variant="secondary" compact /></AppCard>)}
+      </> : null}
 
-function EmptyState({ title, description }: { title: string; description: string }) {
-  return <View style={styles.emptyState}><CalendarDays color={COLORS.muted} size={25} /><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{description}</Text></View>;
+      {role === "Gestão" && screen === "Reservas" ? <>
+        <ScreenTitle eyebrow="Todos os agendamentos" title="Reservas" subtitle="Confirme solicitações e acompanhe o status de cada jogo." />
+        <View style={styles.filterSummary}><AppText variant="small" color={colors.muted}>{reservations.length} registros</AppText><AppText variant="small" color={colors.warning} weight="700">{pendingCount} pendentes</AppText></View>
+        {reservations.length ? reservations.slice().sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)).map(item => <ReservationCard key={item.id} reservation={item} court={courts.find(c => c.id === item.courtId)} ownerMode onStatus={changeStatus} />) : <EmptyState title="Nenhuma reserva ainda" description="Quando os clientes solicitarem horários, eles aparecerão aqui." />}
+      </> : null}
+    </ScrollView>
+
+    {screen !== "booking" ? <View style={styles.bottomNav}>
+      {navItems.map(({ label, icon: Icon }) => <Pressable key={label} onPress={() => setScreen(label)} accessibilityRole="button" accessibilityState={{ selected: screen === label }} style={styles.bottomNavItem}>
+        <View style={[styles.bottomIconWrap, screen === label && styles.bottomIconActive]}><Icon size={19} color={screen === label ? colors.primary : colors.muted} /></View>
+        <AppText variant="caption" weight={screen === label ? "800" : "500"} color={screen === label ? colors.primary : colors.muted}>{label}</AppText>
+      </Pressable>)}
+    </View> : null}
+  </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: COLORS.background },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16, gap: 11 },
-  brandMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center" },
-  brandTextWrap: { flex: 1, gap: 2 },
-  brandName: { fontSize: 23, fontWeight: "900", color: COLORS.text, letterSpacing: -0.7 },
-  locationLine: { flexDirection: "row", alignItems: "center", gap: 4 },
-  locationText: { color: COLORS.muted, fontSize: 11 },
-  demoBadge: { flexDirection: "row", alignItems: "center", gap: 5, borderColor: COLORS.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
-  demoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary },
-  demoText: { color: COLORS.primary, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, gap: 5, paddingBottom: 4 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
-  activeTab: { backgroundColor: COLORS.surfaceRaised },
-  tabText: { fontSize: 12, color: COLORS.muted, fontWeight: "600" },
-  activeTabText: { color: COLORS.primary },
-  content: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 32, gap: 14 },
-  hero: { backgroundColor: COLORS.surfaceRaised, borderRadius: 22, padding: 20, overflow: "hidden", borderWidth: 1, borderColor: COLORS.border, gap: 10 },
-  heroGlow: { position: "absolute", width: 150, height: 150, borderRadius: 75, right: -50, top: -60, backgroundColor: "#B8F36B12" },
-  eyebrow: { color: COLORS.primary, fontSize: 10, fontWeight: "800", letterSpacing: 1.5 },
-  heroTitle: { color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: "800", letterSpacing: -0.8 },
-  heroSubtitle: { color: COLORS.muted, fontSize: 13, lineHeight: 19, maxWidth: 290 },
-  heroButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: COLORS.primary, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 14, marginTop: 4 },
-  heroButtonText: { color: COLORS.background, fontSize: 12, fontWeight: "800" },
-  sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: "800", marginTop: 5, letterSpacing: -0.3 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard: { width: "48%", flexGrow: 1, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 14, gap: 7 },
-  statIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  statValue: { color: COLORS.text, fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  statLabel: { color: COLORS.muted, fontSize: 11 },
-  reservationCard: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 14, gap: 13 },
-  reservationTop: { flexDirection: "row", alignItems: "center", gap: 10 },
-  avatar: { width: 38, height: 38, borderRadius: 13, backgroundColor: COLORS.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: COLORS.primary, fontSize: 12, fontWeight: "800" },
-  reservationInfo: { flex: 1, gap: 4 },
-  cardTitle: { color: COLORS.text, fontSize: 13, fontWeight: "700" },
-  mutedText: { color: COLORS.muted, fontSize: 11, lineHeight: 16 },
-  statusPill: { borderWidth: 1, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 7 },
-  statusText: { fontSize: 9, fontWeight: "800" },
-  reservationBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 11 },
-  inlineMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { color: COLORS.text, fontSize: 12, fontWeight: "600" },
-  priceText: { color: COLORS.primary, fontSize: 13, fontWeight: "800" },
-  actionRow: { flexDirection: "row", gap: 8 },
-  confirmButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 },
-  confirmButtonText: { color: COLORS.background, fontSize: 11, fontWeight: "800" },
-  cancelButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1, borderColor: COLORS.red + "44", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 },
-  cancelButtonText: { color: COLORS.red, fontSize: 11, fontWeight: "700" },
-  secondaryButton: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: COLORS.green + "44", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 },
-  secondaryButtonText: { color: COLORS.green, fontSize: 11, fontWeight: "700" },
-  disclaimer: { color: COLORS.muted, fontSize: 10, lineHeight: 15 },
-  primaryButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 12, marginTop: 3 },
-  primaryButtonText: { color: COLORS.background, fontSize: 13, fontWeight: "800" },
-  screenHeading: { gap: 5, marginBottom: 4, marginTop: 4 },
-  screenTitle: { color: COLORS.text, fontSize: 27, fontWeight: "800", letterSpacing: -0.7 },
-  screenSubtitle: { color: COLORS.muted, fontSize: 12, lineHeight: 18 },
-  dateCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, padding: 14, borderRadius: 15 },
-  dateCount: { color: COLORS.primary, fontSize: 11, fontWeight: "800" },
-  courtSchedule: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 14, gap: 12 },
-  courtScheduleHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  slotRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
-  slotTime: { width: 43, justifyContent: "center" },
-  slotTimeText: { color: COLORS.text, fontSize: 11, fontWeight: "800" },
-  slotEndText: { color: COLORS.muted, fontSize: 10, marginTop: 3 },
-  slotBar: { flex: 1, backgroundColor: COLORS.surfaceRaised, borderLeftWidth: 3, borderLeftColor: COLORS.primary, borderRadius: 7, padding: 10, gap: 4 },
-  slotCustomer: { color: COLORS.text, fontSize: 11, fontWeight: "700" },
-  slotStatus: { color: COLORS.muted, fontSize: 10 },
-  emptyInline: { color: COLORS.muted, fontSize: 11, paddingVertical: 8 },
-  courtCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 15 },
-  courtSymbol: { width: 46, height: 46, borderRadius: 14, backgroundColor: COLORS.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  courtDetails: { flex: 1, gap: 4 },
-  courtPrice: { color: COLORS.primary, fontSize: 14, fontWeight: "800", marginTop: 3 },
-  activeDot: { width: 9, height: 9, borderRadius: 5 },
-  infoPanel: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, padding: 14, gap: 7, backgroundColor: COLORS.surfaceRaised },
-  infoTitle: { color: COLORS.primary, fontSize: 12, fontWeight: "800" },
-  filterSummary: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 2 },
-  pendingText: { color: COLORS.orange, fontSize: 11, fontWeight: "800" },
-  emptyState: { alignItems: "center", gap: 10, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 24 },
-  bottomBar: { flexDirection: "row", paddingTop: 10, paddingBottom: 8, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
-  bottomItem: { flex: 1, alignItems: "center", gap: 5, paddingVertical: 4 },
-  bottomLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "600" },
-  bottomLabelActive: { color: COLORS.primary },
+  safe: { flex: 1, backgroundColor: colors.background },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, backgroundColor: colors.background },
+  topBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  brandLockup: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 },
+  brandIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  locationInline: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 },
+  roleSwitcher: { flexDirection: "row", padding: 3, backgroundColor: colors.surfaceMuted, borderRadius: radius.md },
+  roleOption: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
+  roleOptionActive: { backgroundColor: colors.primary },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 28, gap: spacing.lg },
+  screenTitleWrap: { gap: spacing.xs, marginTop: spacing.sm, marginBottom: spacing.xs },
+  hero: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl, gap: spacing.md, overflow: "hidden" },
+  heroTopline: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  livePill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E7F5EB", paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill },
+  heroTitle: { lineHeight: 35, letterSpacing: -0.8 },
+  searchBox: { backgroundColor: colors.surface, minHeight: 52, borderRadius: radius.md, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs },
+  cityChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
+  sportSection: { gap: spacing.sm },
+  sportCards: { flexDirection: "row", gap: spacing.sm },
+  sportCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: 4 },
+  sportIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.md },
+  venueCard: { backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.xs },
+  pressed: { opacity: 0.82 },
+  courtArtwork: { height: 154, backgroundColor: "#1C5B3B", padding: spacing.md, justifyContent: "space-between", overflow: "hidden" },
+  artworkBadge: { zIndex: 1, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.accent, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill },
+  artworkBadgeText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+  fieldLines: { position: "absolute", top: 18, left: 20, right: 20, bottom: 18, borderWidth: 1.5, borderColor: "#FFFFFF55", borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  fieldCircle: { width: 74, height: 74, borderRadius: 37, borderWidth: 1.5, borderColor: "#FFFFFF55" },
+  fieldMidline: { position: "absolute", left: 0, right: 0, height: 1.5, backgroundColor: "#FFFFFF55" },
+  favoriteButton: { position: "absolute", right: 14, top: 14, width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", zIndex: 2 },
+  artworkCaption: { zIndex: 1, gap: 3 },
+  artworkVenue: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
+  artworkLocation: { color: "#FFFFFF", fontSize: 11, flexDirection: "row", alignItems: "center" },
+  venueCardBody: { padding: spacing.lg, gap: spacing.md },
+  venueTitleRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  priceBlock: { alignItems: "flex-end" },
+  venueFooter: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  availableTag: { flexDirection: "row", alignItems: "center", gap: 6 },
+  availableDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  trustStrip: { flexDirection: "row", gap: spacing.md, backgroundColor: colors.successSoft, padding: spacing.lg, borderRadius: radius.lg, alignItems: "flex-start" },
+  searchInputWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, minHeight: 52 },
+  searchInput: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: spacing.sm },
+  filters: { gap: spacing.sm, paddingVertical: 2 },
+  filterChip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  emptyState: { alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xxl },
+  emptyIcon: { width: 50, height: 50, backgroundColor: colors.surfaceMuted, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  centerText: { textAlign: "center" },
+  bookingTop: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  backButton: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  bookingCourtSummary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  bookingSportIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" },
+  dateOptions: { gap: spacing.sm, paddingVertical: 2 },
+  dateOption: { width: 76, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: "center", paddingVertical: spacing.md, gap: 3 },
+  dateOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  timeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  formField: { gap: spacing.sm },
+  input: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, color: colors.text, backgroundColor: colors.surface, fontSize: 14 },
+  noteInput: { minHeight: 78, textAlignVertical: "top" },
+  bookingTotal: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing.lg },
+  reservationHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  reservationAvatar: { width: 42, height: 42, borderRadius: 15, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  reservationDetails: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, gap: spacing.sm },
+  metaLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  inlineActions: { flexDirection: "row", gap: spacing.sm },
+  ownerHero: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl, gap: spacing.md },
+  ownerHeroFooter: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg, marginTop: spacing.sm },
+  ownerHeroMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  statCard: { width: "48%", flexGrow: 1, flexBasis: "45%", padding: spacing.md, gap: spacing.sm },
+  statIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  dateCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, borderRadius: radius.lg },
+  courtScheduleHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: spacing.md },
+  agendaRow: { flexDirection: "row", gap: spacing.md, alignItems: "stretch" },
+  agendaTime: { width: 48, justifyContent: "center", gap: 2 },
+  agendaBar: { flex: 1, backgroundColor: colors.surfaceMuted, borderLeftWidth: 3, borderLeftColor: colors.accentPressed, borderRadius: radius.sm, padding: spacing.md, gap: 3 },
+  filterSummary: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sportToggle: { flexDirection: "row", gap: spacing.sm },
+  sportToggleItem: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", padding: spacing.md, backgroundColor: colors.surface },
+  sportToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  manageCourtCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  activePill: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, marginTop: 3 },
+  bottomNav: { flexDirection: "row", paddingTop: spacing.sm, paddingBottom: Platform.OS === "ios" ? spacing.lg : spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  bottomNavItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: spacing.xs },
+  bottomIconWrap: { width: 54, height: 30, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  bottomIconActive: { backgroundColor: colors.accent },
 });
