@@ -1,36 +1,44 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { mockCourts, mockReservations } from "../data/mockData";
-import type { Court, Reservation } from "../types";
+import { mockCourts, mockReservations, mockPromotions, mockStaff } from "../data/mockData";
+import type { AppNotification, BlockedSlot, Court, Promotion, Reservation, Review, StaffMember } from "../types";
 
-const COURTS_KEY = "@caririplay/courts:v1";
-const RESERVATIONS_KEY = "@caririplay/reservations:v1";
+const KEYS = {
+  courts: "@caririplay/courts:v2",
+  reservations: "@caririplay/reservations:v2",
+  favorites: "@caririplay/favorites:v1",
+  reviews: "@caririplay/reviews:v1",
+  blockedSlots: "@caririplay/blocked-slots:v1",
+  notifications: "@caririplay/notifications:v1",
+  promotions: "@caririplay/promotions:v1",
+  staff: "@caririplay/staff:v1",
+};
 
-export async function loadCourts(): Promise<Court[]> {
+async function loadList<T>(key: string, fallback: T[]): Promise<T[]> {
   try {
-    const raw = await AsyncStorage.getItem(COURTS_KEY);
-    if (raw) return JSON.parse(raw) as Court[];
+    const raw = await AsyncStorage.getItem(key);
+    if (raw) return JSON.parse(raw) as T[];
   } catch {
-    // If local data is unreadable, fall back to the demo dataset.
+    // Malformed local data falls back to the demo defaults.
   }
-  await saveCourts(mockCourts);
-  return mockCourts;
+  await AsyncStorage.setItem(key, JSON.stringify(fallback));
+  return fallback;
 }
-
-export async function saveCourts(courts: Court[]): Promise<void> {
-  await AsyncStorage.setItem(COURTS_KEY, JSON.stringify(courts));
+async function saveList<T>(key: string, value: T[]): Promise<void> {
+  await AsyncStorage.setItem(key, JSON.stringify(value));
 }
-
-export async function loadReservations(): Promise<Reservation[]> {
-  try {
-    const raw = await AsyncStorage.getItem(RESERVATIONS_KEY);
-    if (raw) return JSON.parse(raw) as Reservation[];
-  } catch {
-    // If local data is unreadable, fall back to the demo dataset.
-  }
-  await saveReservations(mockReservations);
-  return mockReservations;
-}
-
-export async function saveReservations(reservations: Reservation[]): Promise<void> {
-  await AsyncStorage.setItem(RESERVATIONS_KEY, JSON.stringify(reservations));
-}
+export const loadCourts = () => loadList<Court>(KEYS.courts, mockCourts);
+export const saveCourts = (value: Court[]) => saveList(KEYS.courts, value);
+export const loadReservations = () => loadList<Reservation>(KEYS.reservations, mockReservations);
+export const saveReservations = (value: Reservation[]) => saveList(KEYS.reservations, value);
+export const loadFavorites = () => loadList<string>(KEYS.favorites, []);
+export const saveFavorites = (value: string[]) => saveList(KEYS.favorites, value);
+export const loadReviews = () => loadList<Review>(KEYS.reviews, []);
+export const saveReviews = (value: Review[]) => saveList(KEYS.reviews, value);
+export const loadBlockedSlots = () => loadList<BlockedSlot>(KEYS.blockedSlots, []);
+export const saveBlockedSlots = (value: BlockedSlot[]) => saveList(KEYS.blockedSlots, value);
+export const loadNotifications = () => loadList<AppNotification>(KEYS.notifications, []);
+export const saveNotifications = (value: AppNotification[]) => saveList(KEYS.notifications, value);
+export const loadPromotions = () => loadList<Promotion>(KEYS.promotions, mockPromotions);
+export const savePromotions = (value: Promotion[]) => saveList(KEYS.promotions, value);
+export const loadStaff = () => loadList<StaffMember>(KEYS.staff, mockStaff);
+export const saveStaff = (value: StaffMember[]) => saveList(KEYS.staff, value);
