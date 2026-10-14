@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "CaririPlay",
+    "slug": "caririplay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#07130F"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.galdino2002.caririplay"
+    },
+    "android": {
+      "package": "com.galdino2002.caririplay",
+      "adaptiveIcon": {
+        "backgroundColor": "#07130F"
+      }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}
