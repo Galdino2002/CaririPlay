@@ -129,6 +129,8 @@ export default function App() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [showCourtForm, setShowCourtForm] = useState(false);
+  const [editingCourtId, setEditingCourtId] = useState<string | null>(null);
+  const [editingCourtPrice, setEditingCourtPrice] = useState("");
   const [courtName, setCourtName] = useState("");
   const [courtPrice, setCourtPrice] = useState("");
   const [courtSport, setCourtSport] = useState<"Society" | "Vôlei">("Society");
@@ -235,6 +237,23 @@ export default function App() {
     const updated = courts.map(item => item.id === court.id ? { ...item, active: !item.active } : item);
     try { await saveCourts(updated); setCourts(updated); }
     catch { Alert.alert("Erro ao salvar", "Não foi possível atualizar a quadra."); }
+  };
+
+  const updateCourtPrice = async (court: Court) => {
+    const price = Number(editingCourtPrice.replace(",", "."));
+    if (!Number.isFinite(price) || price <= 0) {
+      Alert.alert("Preço inválido", "Informe um valor por hora maior que zero.");
+      return;
+    }
+    const updated = courts.map(item => item.id === court.id ? { ...item, pricePerHour: price } : item);
+    try {
+      await saveCourts(updated);
+      setCourts(updated);
+      setEditingCourtId(null);
+      setEditingCourtPrice("");
+    } catch {
+      Alert.alert("Erro ao salvar", "Não foi possível atualizar o preço.");
+    }
   };
 
   const toggleFavorite = (courtId: string) => setFavorites(previous => previous.includes(courtId) ? previous.filter(id => id !== courtId) : [...previous, courtId]);
@@ -370,7 +389,7 @@ export default function App() {
         <ScreenTitle eyebrow="Seu espaço" title="Quadras" subtitle="Gerencie modalidades, preços e disponibilidade." />
         <AppButton label={showCourtForm ? "Fechar formulário" : "Adicionar quadra"} onPress={() => setShowCourtForm(value => !value)} icon={showCourtForm ? <X size={17} color={colors.primary} /> : <Plus size={17} color={colors.primary} />} />
         {showCourtForm ? <AppCard style={{ gap: 14 }}><AppText variant="subtitle">Nova quadra</AppText><View style={styles.formField}><AppText variant="small" weight="700">Nome da quadra</AppText><TextInput value={courtName} onChangeText={setCourtName} placeholder="Ex.: Society 3" placeholderTextColor={colors.muted} style={styles.input} /></View><View style={styles.formField}><AppText variant="small" weight="700">Modalidade</AppText><View style={styles.sportToggle}>{(["Society", "Vôlei"] as const).map(sport => <Pressable key={sport} onPress={() => setCourtSport(sport)} style={[styles.sportToggleItem, courtSport === sport && styles.sportToggleActive]}><AppText weight="700" color={courtSport === sport ? "#FFFFFF" : colors.muted}>{sport}</AppText></Pressable>)}</View></View><View style={styles.formField}><AppText variant="small" weight="700">Preço por hora (R$)</AppText><TextInput value={courtPrice} onChangeText={setCourtPrice} placeholder="Ex.: 120" placeholderTextColor={colors.muted} style={styles.input} keyboardType="decimal-pad" /></View><AppButton label="Salvar quadra" onPress={() => void addCourt()} /></AppCard> : null}
-        {courts.map(court => <AppCard key={court.id} style={styles.manageCourtCard}><View style={styles.bookingSportIcon}><Trophy size={22} color={colors.success} /></View><View style={{ flex: 1, gap: 3 }}><AppText variant="subtitle">{court.name}</AppText><AppText variant="small" color={colors.muted}>{court.sport} · {currency(court.pricePerHour)}/hora</AppText><View style={[styles.activePill, { backgroundColor: court.active ? colors.successSoft : colors.surfaceMuted }]}><AppText variant="caption" color={court.active ? colors.success : colors.muted} weight="700">{court.active ? "Ativa no catálogo" : "Oculta do catálogo"}</AppText></View></View><AppButton label={court.active ? "Desativar" : "Ativar"} onPress={() => void toggleCourt(court)} variant="secondary" compact /></AppCard>)}
+        {courts.map(court => <AppCard key={court.id} style={styles.manageCourtCard}><View style={styles.bookingSportIcon}><Trophy size={22} color={colors.success} /></View><View style={{ flex: 1, gap: 5 }}><AppText variant="subtitle">{court.name}</AppText><AppText variant="small" color={colors.muted}>{court.sport} · {currency(court.pricePerHour)}/hora</AppText><View style={[styles.activePill, { backgroundColor: court.active ? colors.successSoft : colors.surfaceMuted }]}><AppText variant="caption" color={court.active ? colors.success : colors.muted} weight="700">{court.active ? "Ativa no catálogo" : "Oculta do catálogo"}</AppText></View>{editingCourtId === court.id ? <View style={{ gap: 7, marginTop: 5 }}><TextInput value={editingCourtPrice} onChangeText={setEditingCourtPrice} placeholder="Novo preço por hora" placeholderTextColor={colors.muted} keyboardType="decimal-pad" style={styles.input} accessibilityLabel="Novo preço por hora" /><View style={styles.inlineActions}><View style={{ flex: 1 }}><AppButton label="Salvar preço" onPress={() => void updateCourtPrice(court)} compact /></View><View style={{ flex: 1 }}><AppButton label="Cancelar" onPress={() => setEditingCourtId(null)} variant="secondary" compact /></View></View></View> : <Pressable accessibilityRole="button" onPress={() => { setEditingCourtId(court.id); setEditingCourtPrice(String(court.pricePerHour)); }} style={styles.editPriceLink}><AppText variant="caption" color={colors.success} weight="800">Editar preço</AppText></Pressable>}</View><AppButton label={court.active ? "Desativar" : "Ativar"} onPress={() => void toggleCourt(court)} variant="secondary" compact /></AppCard>)}
       </> : null}
 
       {role === "Gestão" && screen === "Reservas" ? <>
