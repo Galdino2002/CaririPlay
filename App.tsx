@@ -166,6 +166,7 @@ export default function App() {
   const reservedValue = todayReservations.filter(item => item.status === "Confirmada" || item.status === "Concluída").reduce((sum, item) => sum + (courts.find(c => c.id === item.courtId)?.pricePerHour ?? 0), 0);
   const timeSlots = Array.from({ length: 16 }, (_, index) => `${String(index + 7).padStart(2, "0")}:00`);
   const isSlotTaken = (courtId: string, date: string, startTime: string) => reservations.some(item => item.courtId === courtId && item.date === date && item.startTime === startTime && item.status !== "Cancelada");
+  const availableSlots = timeSlots.filter(time => !selectedCourt || !isSlotTaken(selectedCourt.id, selectedDate, time));
 
   const changeStatus = (reservation: Reservation, status: ReservationStatus) => {
     Alert.alert(status === "Cancelada" ? "Cancelar esta reserva?" : `${status} reserva?`, `${reservation.customerName} · ${reservation.date} · ${reservation.startTime}`, [
